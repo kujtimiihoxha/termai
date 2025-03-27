@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 
@@ -10,7 +8,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/kujtimiihoxha/termai/internal/app"
-	"github.com/kujtimiihoxha/termai/internal/llm"
 	"github.com/kujtimiihoxha/termai/internal/permission"
 	"github.com/kujtimiihoxha/termai/internal/pubsub"
 	"github.com/kujtimiihoxha/termai/internal/tui/components/core"
@@ -79,19 +76,8 @@ func (a appModel) Init() tea.Cmd {
 
 func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case pubsub.Event[llm.AgentEvent]:
-		log.Println("AgentEvent")
-		log.Println(msg)
 	case pubsub.Event[permission.PermissionRequest]:
-		return a, dialog.NewPermissionDialogCmd(
-			msg.Payload,
-			fmt.Sprintf(
-				"Tool: %s\nAction: %s\nParams: %v",
-				msg.Payload.ToolName,
-				msg.Payload.Action,
-				msg.Payload.Params,
-			),
-		)
+		return a, dialog.NewPermissionDialogCmd(msg.Payload)
 	case dialog.PermissionResponseMsg:
 		switch msg.Action {
 		case dialog.PermissionAllow:
@@ -104,6 +90,7 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case vimtea.EditorModeMsg:
 		a.editorMode = msg.Mode
 	case tea.WindowSizeMsg:
+		var cmds []tea.Cmd
 		msg.Height -= 1 // Make space for the status bar
 		a.width, a.height = msg.Width, msg.Height
 
@@ -113,8 +100,14 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.help = uh.(core.HelpCmp)
 
 		p, cmd := a.pages[a.currentPage].Update(msg)
+		cmds = append(cmds, cmd)
 		a.pages[a.currentPage] = p
-		return a, cmd
+
+		d, cmd := a.dialog.Update(msg)
+		cmds = append(cmds, cmd)
+		a.dialog = d.(core.DialogCmp)
+
+		return a, tea.Batch(cmds...)
 	case core.DialogMsg:
 		d, cmd := a.dialog.Update(msg)
 		a.dialog = d.(core.DialogCmp)

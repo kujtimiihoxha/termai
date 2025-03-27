@@ -8,5 +8,8 @@ const (
 	ToolIcon string = ""
 	UserIcon string = ""
 
+	CheckIcon   string = "✓"
+	SpinnerIcon string = "..."
+
 	SleepIcon string = "󰒲"
 )

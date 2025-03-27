@@ -11,9 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cloudwego/eino/components/tool"
-	"github.com/cloudwego/eino/schema"
-
 	"github.com/bmatcuk/doublestar/v4"
 )
 
@@ -35,43 +32,44 @@ type GlobParams struct {
 	Path    string `json:"path"`
 }
 
-func (b *globTool) Info(ctx context.Context) (*schema.ToolInfo, error) {
-	return &schema.ToolInfo{
-		Name: GlobToolName,
-		Desc: `- Fast file pattern matching tool that works with any codebase size
-- Supports glob patterns like "**/*.js" or "src/**/*.ts"
-- Returns matching file paths sorted by modification time
-- Use this tool when you need to find files by name patterns
-- When you are doing an open ended search that may require multiple rounds of globbing and grepping, use the Agent tool instead`,
-		ParamsOneOf: schema.NewParamsOneOfByParams(map[string]*schema.ParameterInfo{
-			"pattern": {
-				Type:     "string",
-				Desc:     "The glob pattern to match files against",
-				Required: true,
+func (g *globTool) Info() ToolInfo {
+	return ToolInfo{
+		Name:        GlobToolName,
+		Description: globDescription(),
+		Parameters: map[string]any{
+			"pattern": map[string]any{
+				"type":        "string",
+				"description": "The glob pattern to match files against",
 			},
-			"path": {
-				Type: "string",
-				Desc: "The directory to search in. Defaults to the current working directory.",
+			"path": map[string]any{
+				"type":        "string",
+				"description": "The directory to search in. Defaults to the current working directory.",
 			},
-		}),
-	}, nil
+		},
+		Required: []string{"pattern"},
+	}
 }
 
-func (b *globTool) InvokableRun(ctx context.Context, args string, opts ...tool.Option) (string, error) {
+// Run implements Tool.
+func (g *globTool) Run(ctx context.Context, args string) (ToolResponse, error) {
 	var params GlobParams
 	if err := json.Unmarshal([]byte(args), &params); err != nil {
-		return fmt.Sprintf("error parsing parameters: %s", err), nil
+		return NewTextErrorResponse(fmt.Sprintf("error parsing parameters: %s", err)), nil
+	}
+
+	if params.Pattern == "" {
+		return NewTextErrorResponse("pattern is required"), nil
 	}
 
 	// If path is empty, use current working directory
 	searchPath := params.Path
 	if searchPath == "" {
-		searchPath = b.workingDir
+		searchPath = g.workingDir
 	}
 
 	files, truncated, err := globFiles(params.Pattern, searchPath, 100)
 	if err != nil {
-		return fmt.Sprintf("error performing glob search: %s", err), nil
+		return NewTextErrorResponse(fmt.Sprintf("error performing glob search: %s", err)), nil
 	}
 
 	// Format the output for the assistant
@@ -81,11 +79,11 @@ func (b *globTool) InvokableRun(ctx context.Context, args string, opts ...tool.O
 	} else {
 		output = strings.Join(files, "\n")
 		if truncated {
-			output += "\n(Results are truncated. Consider using a more specific path or pattern.)"
+			output += "\n\n(Results are truncated. Consider using a more specific path or pattern.)"
 		}
 	}
 
-	return output, nil
+	return NewTextResponse(output), nil
 }
 
 func globFiles(pattern, searchPath string, limit int) ([]string, bool, error) {
@@ -167,8 +165,45 @@ func skipHidden(path string) bool {
 	return base != "." && strings.HasPrefix(base, ".")
 }
 
-func NewGlobTool(workingDir string) tool.InvokableTool {
+func globDescription() string {
+	return `Fast file pattern matching tool that finds files by name and pattern, returning matching paths sorted by modification time (newest first).
+
+WHEN TO USE THIS TOOL:
+- Use when you need to find files by name patterns or extensions
+- Great for finding specific file types across a directory structure
+- Useful for discovering files that match certain naming conventions
+
+HOW TO USE:
+- Provide a glob pattern to match against file paths
+- Optionally specify a starting directory (defaults to current working directory)
+- Results are sorted with most recently modified files first
+
+GLOB PATTERN SYNTAX:
+- '*' matches any sequence of non-separator characters
+- '**' matches any sequence of characters, including separators
+- '?' matches any single non-separator character
+- '[...]' matches any character in the brackets
+- '[!...]' matches any character not in the brackets
+
+COMMON PATTERN EXAMPLES:
+- '*.js' - Find all JavaScript files in the current directory
+- '**/*.js' - Find all JavaScript files in any subdirectory
+- 'src/**/*.{ts,tsx}' - Find all TypeScript files in the src directory
+- '*.{html,css,js}' - Find all HTML, CSS, and JS files
+
+LIMITATIONS:
+- Results are limited to 100 files (newest first)
+- Does not search file contents (use Grep tool for that)
+- Hidden files (starting with '.') are skipped
+
+TIPS:
+- For the most useful results, combine with the Grep tool: first find files with Glob, then search their contents with Grep
+- When doing iterative exploration that may require multiple rounds of searching, consider using the Agent tool instead
+- Always check if results are truncated and refine your search pattern if needed`
+}
+
+func NewGlobTool(workingDir string) BaseTool {
 	return &globTool{
-		workingDir,
+		workingDir: workingDir,
 	}
 }

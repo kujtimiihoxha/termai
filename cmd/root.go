@@ -96,16 +96,6 @@ func setupSubscriptions(app *app.App) (chan tea.Msg, func()) {
 		}()
 	}
 	{
-		sub := app.LLM.Subscribe(ctx)
-		wg.Add(1)
-		go func() {
-			for ev := range sub {
-				ch <- ev
-			}
-			wg.Done()
-		}()
-	}
-	{
 		sub := app.Permissions.Subscribe(ctx)
 		wg.Add(1)
 		go func() {

@@ -5,7 +5,6 @@ import (
 	"database/sql"
 
 	"github.com/kujtimiihoxha/termai/internal/db"
-	"github.com/kujtimiihoxha/termai/internal/llm"
 	"github.com/kujtimiihoxha/termai/internal/logging"
 	"github.com/kujtimiihoxha/termai/internal/message"
 	"github.com/kujtimiihoxha/termai/internal/permission"
@@ -19,7 +18,6 @@ type App struct {
 	Sessions    session.Service
 	Messages    message.Service
 	Permissions permission.Service
-	LLM         llm.Service
 
 	Logger logging.Interface
 }
@@ -31,14 +29,12 @@ func New(ctx context.Context, conn *sql.DB) *App {
 	})
 	sessions := session.NewService(ctx, q)
 	messages := message.NewService(ctx, q)
-	llm := llm.NewService(ctx, log, sessions, messages)
 
 	return &App{
 		Context:     ctx,
 		Sessions:    sessions,
 		Messages:    messages,
 		Permissions: permission.Default,
-		LLM:         llm,
 		Logger:      log,
 	}
 }

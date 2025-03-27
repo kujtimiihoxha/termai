@@ -1,16 +1,20 @@
 package repl
 
 import (
+	"log"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/cloudwego/eino/schema"
 	"github.com/kujtimiihoxha/termai/internal/app"
+	"github.com/kujtimiihoxha/termai/internal/llm/prompt"
+	"github.com/kujtimiihoxha/termai/internal/llm/provider"
+	"github.com/kujtimiihoxha/termai/internal/llm/tools"
 	"github.com/kujtimiihoxha/termai/internal/tui/layout"
 	"github.com/kujtimiihoxha/termai/internal/tui/styles"
 	"github.com/kujtimiihoxha/vimtea"
+	"github.com/spf13/viper"
 )
 
 type EditorCmp interface {
@@ -138,8 +142,32 @@ func (m *editorCmp) SetSize(width int, height int) {
 func (m *editorCmp) Send() tea.Cmd {
 	return func() tea.Msg {
 		content := strings.Join(m.editor.GetBuffer().Lines(), "\n")
-		m.app.Messages.Create(m.sessionID, *schema.UserMessage(content))
-		m.app.LLM.SendRequest(m.sessionID, content)
+		// m.app.Messages.Create(m.sessionID, *schema.UserMessage(content))
+		// m.app.LLM.SendRequest(m.sessionID, content)
+		// TODO: send the message
+		wd := viper.GetString("wd")
+		provider, err := provider.NewAnthropicProvider(
+			m.app,
+			provider.WithAnthropicSystemMessage(prompt.CoderSystemPrompt()),
+			provider.WithAnthropicTools([]tools.BaseTool{
+				tools.NewBashTool(wd),
+				tools.NewEditTool(wd),
+				tools.NewGlobTool(wd),
+				tools.NewGrepTool(wd),
+				tools.NewLsTool(wd),
+				tools.NewViewTool(wd),
+				tools.NewWriteTool(wd),
+			}),
+		)
+		if err != nil {
+			log.Println(err)
+		}
+
+		go func() {
+			err := provider.NewMessage(m.sessionID, content)
+			log.Println(err)
+		}()
+
 		return m.editor.Reset()
 	}
 }

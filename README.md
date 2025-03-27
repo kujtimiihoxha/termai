@@ -3,6 +3,7 @@
 **⚠️ WORK IN PROGRESS ⚠️**
 
 This project is currently under active development.
+![TermAI Demo](./assets/termai.gif)
 
 ## Current Progress
 

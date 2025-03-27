@@ -5,7 +5,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-const defaultMargin = 2
+const defaultMargin = 1
 
 // Helper functions for style pointers
 func boolPtr(b bool) *bool       { return &b }
@@ -25,7 +25,7 @@ var catppuccinDark = ansi.StyleConfig{
 	Document: ansi.StyleBlock{
 		StylePrimitive: ansi.StylePrimitive{
 			BlockPrefix: "\n",
-			BlockSuffix: "\n",
+			BlockSuffix: "",
 			Color:       stringPtr(dark.Text().Hex),
 		},
 		Margin: uintPtr(defaultMargin),
@@ -153,7 +153,7 @@ var catppuccinDark = ansi.StyleConfig{
 	CodeBlock: ansi.StyleCodeBlock{
 		StyleBlock: ansi.StyleBlock{
 			StylePrimitive: ansi.StylePrimitive{
-				Prefix: "   ",
+				Prefix: " ",
 				Color:  stringPtr(dark.Text().Hex),
 			},
 

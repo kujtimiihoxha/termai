@@ -4,12 +4,19 @@
 
 package db
 
+import (
+	"database/sql"
+)
+
 type Message struct {
-	ID          string `json:"id"`
-	SessionID   string `json:"session_id"`
-	MessageData string `json:"message_data"`
-	CreatedAt   int64  `json:"created_at"`
-	UpdatedAt   int64  `json:"updated_at"`
+	ID          string         `json:"id"`
+	SessionID   string         `json:"session_id"`
+	Role        string         `json:"role"`
+	Content     string         `json:"content"`
+	ToolCalls   sql.NullString `json:"tool_calls"`
+	ToolResults sql.NullString `json:"tool_results"`
+	CreatedAt   int64          `json:"created_at"`
+	UpdatedAt   int64          `json:"updated_at"`
 }
 
 type Session struct {

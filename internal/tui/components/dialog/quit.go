@@ -3,7 +3,6 @@ package dialog
 import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/kujtimiihoxha/termai/internal/tui/components/core"
 	"github.com/kujtimiihoxha/termai/internal/tui/layout"
 	"github.com/kujtimiihoxha/termai/internal/tui/styles"
@@ -13,11 +12,6 @@ import (
 )
 
 const question = "Are you sure you want to quit?"
-
-var (
-	width  = lipgloss.Width(question) + 6
-	height = 3
-)
 
 type QuitDialog interface {
 	tea.Model
@@ -37,8 +31,6 @@ func (q *quitDialogCmp) Init() tea.Cmd {
 
 func (q *quitDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
-
-	// Process the form
 	form, cmd := q.form.Update(msg)
 	if f, ok := form.(*huh.Form); ok {
 		q.form = f
@@ -67,6 +59,7 @@ func (q *quitDialogCmp) GetSize() (int, int) {
 func (q *quitDialogCmp) SetSize(width int, height int) {
 	q.width = width
 	q.height = height
+	q.form = q.form.WithWidth(width).WithHeight(height)
 }
 
 func (q *quitDialogCmp) BindingKeys() []key.Binding {
@@ -84,28 +77,30 @@ func newQuitDialogCmp() QuitDialog {
 	theme.Focused.FocusedButton = theme.Focused.FocusedButton.Background(styles.Warning)
 	theme.Blurred.FocusedButton = theme.Blurred.FocusedButton.Background(styles.Warning)
 	form := huh.NewForm(huh.NewGroup(confirm)).
-		WithWidth(width).
-		WithHeight(height).
 		WithShowHelp(false).
+		WithWidth(0).
+		WithHeight(0).
 		WithTheme(theme).
 		WithShowErrors(false)
 	confirm.Focus()
 	return &quitDialogCmp{
-		form:  form,
-		width: width,
+		form: form,
 	}
 }
 
 func NewQuitDialogCmd() tea.Cmd {
 	content := layout.NewSinglePane(
 		newQuitDialogCmp().(*quitDialogCmp),
-		layout.WithSignlePaneSize(width+2, height+2),
 		layout.WithSinglePaneBordered(true),
 		layout.WithSinglePaneFocusable(true),
 		layout.WithSinglePaneActiveColor(styles.Warning),
 	)
 	content.Focus()
 	return util.CmdHandler(core.DialogMsg{
-		Content: content,
+		Content:     content,
+		WidthRatio:  0.2,
+		HeightRatio: 0.1,
+		MinWidth:    40,
+		MinHeight:   5,
 	})
 }

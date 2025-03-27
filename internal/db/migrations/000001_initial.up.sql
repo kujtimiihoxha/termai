@@ -21,7 +21,10 @@ END;
 CREATE TABLE IF NOT EXISTS messages (
     id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL,
-    message_data TEXT NOT NULL,  -- JSON string of message content
+    role TEXT NOT NULL,
+    content TEXT NOT NULL,
+    tool_calls TEXT,
+    tool_results TEXT,
     created_at INTEGER NOT NULL,  -- Unix timestamp in milliseconds
     updated_at INTEGER NOT NULL,  -- Unix timestamp in milliseconds
     FOREIGN KEY (session_id) REFERENCES sessions (id) ON DELETE CASCADE

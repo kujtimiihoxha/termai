@@ -7,9 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/cloudwego/eino/components/tool"
-	"github.com/cloudwego/eino/schema"
 )
 
 type lsTool struct {
@@ -18,9 +15,7 @@ type lsTool struct {
 
 const (
 	LSToolName = "ls"
-
-	MaxFiles         = 1000
-	TruncatedMessage = "There are more than 1000 files in the repository. Use the LS tool (passing a specific path), Bash tool, and other tools to explore nested directories. The first 1000 files and directories are included below:\n\n"
+	MaxLSFiles = 1000
 )
 
 type LSParams struct {
@@ -28,61 +23,82 @@ type LSParams struct {
 	Ignore []string `json:"ignore"`
 }
 
-func (b *lsTool) Info(ctx context.Context) (*schema.ToolInfo, error) {
-	return &schema.ToolInfo{
-		Name: LSToolName,
-		Desc: "Lists files and directories in a given path. The path parameter must be an absolute path, not a relative path. You can optionally provide an array of glob patterns to ignore with the ignore parameter. You should generally prefer the Glob and Grep tools, if you know which directories to search.",
-		ParamsOneOf: schema.NewParamsOneOfByParams(map[string]*schema.ParameterInfo{
-			"path": {
-				Type:     "string",
-				Desc:     "The absolute path to the directory to list (must be absolute, not relative)",
-				Required: true,
-			},
-			"ignore": {
-				Type: "array",
-				ElemInfo: &schema.ParameterInfo{
-					Type: schema.String,
-					Desc: "List of glob patterns to ignore",
-				},
-			},
-		}),
-	}, nil
+type TreeNode struct {
+	Name     string     `json:"name"`
+	Path     string     `json:"path"`
+	Type     string     `json:"type"` // "file" or "directory"
+	Children []TreeNode `json:"children,omitempty"`
 }
 
-func (b *lsTool) InvokableRun(ctx context.Context, args string, opts ...tool.Option) (string, error) {
+func (l *lsTool) Info() ToolInfo {
+	return ToolInfo{
+		Name:        LSToolName,
+		Description: lsDescription(),
+		Parameters: map[string]any{
+			"path": map[string]any{
+				"type":        "string",
+				"description": "The path to the directory to list (defaults to current working directory)",
+			},
+			"ignore": map[string]any{
+				"type":        "array",
+				"description": "List of glob patterns to ignore",
+				"items": map[string]any{
+					"type": "string",
+				},
+			},
+		},
+		Required: []string{"path"},
+	}
+}
+
+// Run implements Tool.
+func (l *lsTool) Run(ctx context.Context, args string) (ToolResponse, error) {
 	var params LSParams
 	if err := json.Unmarshal([]byte(args), &params); err != nil {
-		return "", err
+		return NewTextErrorResponse(fmt.Sprintf("error parsing parameters: %s", err)), nil
 	}
 
-	if !filepath.IsAbs(params.Path) {
-		return fmt.Sprintf("path must be absolute, got: %s", params.Path), nil
+	// If path is empty, use current working directory
+	searchPath := params.Path
+	if searchPath == "" {
+		searchPath = l.workingDir
 	}
 
-	files, err := b.listDirectory(params.Path)
+	// Ensure the path is absolute
+	if !filepath.IsAbs(searchPath) {
+		searchPath = filepath.Join(l.workingDir, searchPath)
+	}
+
+	// Check if the path exists
+	if _, err := os.Stat(searchPath); os.IsNotExist(err) {
+		return NewTextErrorResponse(fmt.Sprintf("path does not exist: %s", searchPath)), nil
+	}
+
+	files, truncated, err := listDirectory(searchPath, l.workingDir, params.Ignore, MaxLSFiles)
 	if err != nil {
-		return fmt.Sprintf("error listing directory: %s", err), nil
+		return NewTextErrorResponse(fmt.Sprintf("error listing directory: %s", err)), nil
 	}
 
 	tree := createFileTree(files)
-	output := printTree(tree, params.Path)
+	output := printTree(tree, searchPath)
 
-	if len(files) >= MaxFiles {
-		output = TruncatedMessage + output
+	if truncated {
+		output = fmt.Sprintf("There are more than %d files in the directory. Use a more specific path or use the Glob tool to find specific files. The first %d files and directories are included below:\n\n%s", MaxLSFiles, MaxLSFiles, output)
 	}
 
-	return output, nil
+	return NewTextResponse(output), nil
 }
 
-func (b *lsTool) listDirectory(initialPath string) ([]string, error) {
+func listDirectory(initialPath, workingDir string, ignorePatterns []string, limit int) ([]string, bool, error) {
 	var results []string
+	truncated := false
 
 	err := filepath.Walk(initialPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil // Skip files we don't have permission to access
 		}
 
-		if shouldSkip(path) {
+		if shouldSkip(path, ignorePatterns) {
 			if info.IsDir() {
 				return filepath.SkipDir
 			}
@@ -94,7 +110,7 @@ func (b *lsTool) listDirectory(initialPath string) ([]string, error) {
 				path = path + string(filepath.Separator)
 			}
 
-			relPath, err := filepath.Rel(b.workingDir, path)
+			relPath, err := filepath.Rel(workingDir, path)
 			if err == nil {
 				results = append(results, relPath)
 			} else {
@@ -102,39 +118,42 @@ func (b *lsTool) listDirectory(initialPath string) ([]string, error) {
 			}
 		}
 
-		if len(results) >= MaxFiles {
-			return fmt.Errorf("max files reached")
+		if len(results) >= limit {
+			truncated = true
+			return filepath.SkipAll
 		}
 
 		return nil
 	})
-
-	if err != nil && err.Error() != "max files reached" {
-		return nil, err
+	if err != nil {
+		return nil, truncated, err
 	}
 
-	return results, nil
+	return results, truncated, nil
 }
 
-func shouldSkip(path string) bool {
+func shouldSkip(path string, ignorePatterns []string) bool {
 	base := filepath.Base(path)
 
+	// Skip hidden files and directories
 	if base != "." && strings.HasPrefix(base, ".") {
 		return true
 	}
 
+	// Skip __pycache__ directories
 	if strings.Contains(path, filepath.Join("__pycache__", "")) {
 		return true
 	}
 
-	return false
-}
+	// Check against ignore patterns
+	for _, pattern := range ignorePatterns {
+		matched, err := filepath.Match(pattern, base)
+		if err == nil && matched {
+			return true
+		}
+	}
 
-type TreeNode struct {
-	Name     string     `json:"name"`
-	Path     string     `json:"path"`
-	Type     string     `json:"type"` // "file" or "directory"
-	Children []TreeNode `json:"children,omitempty"`
+	return false
 }
 
 func createFileTree(sortedPaths []string) []TreeNode {
@@ -222,8 +241,39 @@ func printTreeRecursive(builder *strings.Builder, tree []TreeNode, level int, pr
 	}
 }
 
-func NewLsTool(workingDir string) tool.InvokableTool {
+func lsDescription() string {
+	return `Directory listing tool that shows files and subdirectories in a tree structure, helping you explore and understand the project organization.
+
+WHEN TO USE THIS TOOL:
+- Use when you need to explore the structure of a directory
+- Helpful for understanding the organization of a project
+- Good first step when getting familiar with a new codebase
+
+HOW TO USE:
+- Provide a path to list (defaults to current working directory)
+- Optionally specify glob patterns to ignore
+- Results are displayed in a tree structure
+
+FEATURES:
+- Displays a hierarchical view of files and directories
+- Automatically skips hidden files/directories (starting with '.')
+- Skips common system directories like __pycache__
+- Can filter out files matching specific patterns
+
+LIMITATIONS:
+- Results are limited to 1000 files
+- Very large directories will be truncated
+- Does not show file sizes or permissions
+- Cannot recursively list all directories in a large project
+
+TIPS:
+- Use Glob tool for finding files by name patterns instead of browsing
+- Use Grep tool for searching file contents
+- Combine with other tools for more effective exploration`
+}
+
+func NewLsTool(workingDir string) BaseTool {
 	return &lsTool{
-		workingDir,
+		workingDir: workingDir,
 	}
 }
