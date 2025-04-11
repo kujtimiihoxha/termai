@@ -13,14 +13,75 @@ type editorCmp struct {
 	textarea textarea.Model
 }
 
+type focusedEditorKeyMaps struct {
+	Send key.Binding
+	Blur key.Binding
+}
+
+type bluredEditorKeyMaps struct {
+	Send  key.Binding
+	Focus key.Binding
+}
+
+var focusedKeyMaps = focusedEditorKeyMaps{
+	Send: key.NewBinding(
+		key.WithKeys("ctrl+s"),
+		key.WithHelp("ctrl+s", "send message"),
+	),
+	Blur: key.NewBinding(
+		key.WithKeys("esc"),
+		key.WithHelp("esc", "blur editor"),
+	),
+}
+
+var bluredKeyMaps = bluredEditorKeyMaps{
+	Send: key.NewBinding(
+		key.WithKeys("ctrl+s", "enter"),
+		key.WithHelp("ctrl+s/enter", "send message"),
+	),
+	Focus: key.NewBinding(
+		key.WithKeys("i"),
+		key.WithHelp("i", "focus editor"),
+	),
+}
+
 func (m *editorCmp) Init() tea.Cmd {
 	return textarea.Blink
 }
 
 func (m *editorCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
-	m.textarea, cmd = m.textarea.Update(msg)
-	return m, cmd
+	if m.textarea.Focused() {
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			if key.Matches(msg, focusedKeyMaps.Send) {
+				// TODO: send message
+				m.textarea.Reset()
+				m.textarea.Blur()
+				return m, nil
+			}
+			if key.Matches(msg, focusedKeyMaps.Blur) {
+				m.textarea.Blur()
+				return m, nil
+			}
+		}
+		m.textarea, cmd = m.textarea.Update(msg)
+		return m, cmd
+	}
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		if key.Matches(msg, bluredKeyMaps.Send) {
+			// TODO: send message
+			m.textarea.Reset()
+			return m, nil
+		}
+		if key.Matches(msg, bluredKeyMaps.Focus) {
+			m.textarea.Focus()
+			return m, textarea.Blink
+		}
+	}
+
+	return m, nil
 }
 
 func (m *editorCmp) View() string {
@@ -39,7 +100,13 @@ func (m *editorCmp) GetSize() (int, int) {
 }
 
 func (m *editorCmp) BindingKeys() []key.Binding {
-	return layout.KeyMapToSlice(m.textarea.KeyMap)
+	bindings := layout.KeyMapToSlice(m.textarea.KeyMap)
+	if m.textarea.Focused() {
+		bindings = append(bindings, layout.KeyMapToSlice(focusedKeyMaps)...)
+	} else {
+		bindings = append(bindings, layout.KeyMapToSlice(bluredKeyMaps)...)
+	}
+	return bindings
 }
 
 func NewEditorCmp() tea.Model {
