@@ -156,30 +156,36 @@ func (m *editorCmp) Cancel() tea.Cmd {
 }
 
 func (m *editorCmp) Send() tea.Cmd {
-	return func() tea.Msg {
-		messages, err := m.app.Messages.List(m.sessionID)
-		if err != nil {
-			return util.ReportError(err)
-		}
-		if hasUnfinishedMessages(messages) {
-			return util.ReportWarn("Assistant is still working on the previous message")
-		}
-		a, err := agent.NewCoderAgent(m.app)
-		if err != nil {
-			return util.ReportError(err)
-		}
-
-		content := strings.Join(m.editor.GetBuffer().Lines(), "\n")
-		ctx, cancel := context.WithCancel(m.app.Context)
-		m.cancelMessage = cancel
-		go func() {
-			defer cancel()
-			a.Generate(ctx, m.sessionID, content)
-			m.cancelMessage = nil
-		}()
-
-		return m.editor.Reset()
+	if m.cancelMessage != nil {
+		return util.ReportWarn("Assistant is still working on the previous message")
 	}
+
+	messages, err := m.app.Messages.List(m.sessionID)
+	if err != nil {
+		return util.ReportError(err)
+	}
+	if hasUnfinishedMessages(messages) {
+		return util.ReportWarn("Assistant is still working on the previous message")
+	}
+
+	a, err := agent.NewCoderAgent(m.app)
+	if err != nil {
+		return util.ReportError(err)
+	}
+
+	content := strings.Join(m.editor.GetBuffer().Lines(), "\n")
+	if len(content) == 0 {
+		return util.ReportWarn("Message is empty")
+	}
+	ctx, cancel := context.WithCancel(m.app.Context)
+	m.cancelMessage = cancel
+	go func() {
+		defer cancel()
+		a.Generate(ctx, m.sessionID, content)
+		m.cancelMessage = nil
+	}()
+
+	return m.editor.Reset()
 }
 
 func (m *editorCmp) View() string {

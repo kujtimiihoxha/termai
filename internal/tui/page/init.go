@@ -299,7 +299,7 @@ func NewInitPage() tea.Model {
 		initModel,
 		layout.WithSinglePaneFocusable(true),
 		layout.WithSinglePaneBordered(true),
-		layout.WithSignlePaneBorderText(
+		layout.WithSinglePaneBorderText(
 			map[layout.BorderPosition]string{
 				layout.TopMiddleBorder: "Welcome to termai - Initial Setup",
 			},

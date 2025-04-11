@@ -10,6 +10,22 @@ var (
 	dark  = catppuccin.Mocha
 )
 
+// NEW STYLES
+var (
+	Background = lipgloss.AdaptiveColor{
+		Dark:  "#212121",
+		Light: "#212121",
+	}
+	BackgroundDarker = lipgloss.AdaptiveColor{
+		Dark:  "#181818",
+		Light: "#181818",
+	}
+	BorderColor = lipgloss.AdaptiveColor{
+		Dark:  "#4b4c5c",
+		Light: "#4b4c5c",
+	}
+)
+
 var (
 	Regular = lipgloss.NewStyle()
 	Bold    = Regular.Bold(true)

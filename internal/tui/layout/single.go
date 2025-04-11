@@ -151,7 +151,7 @@ func NewSinglePane(content tea.Model, opts ...SinglePaneOption) SinglePaneLayout
 	return layout
 }
 
-func WithSignlePaneSize(width, height int) SinglePaneOption {
+func WithSinglePaneSize(width, height int) SinglePaneOption {
 	return func(opts *singlePaneLayout) {
 		opts.width = width
 		opts.height = height
@@ -170,7 +170,7 @@ func WithSinglePaneBordered(bordered bool) SinglePaneOption {
 	}
 }
 
-func WithSignlePaneBorderText(borderText map[BorderPosition]string) SinglePaneOption {
+func WithSinglePaneBorderText(borderText map[BorderPosition]string) SinglePaneOption {
 	return func(opts *singlePaneLayout) {
 		opts.borderText = borderText
 	}
