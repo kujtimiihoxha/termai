@@ -16,6 +16,10 @@ var (
 		Dark:  "#212121",
 		Light: "#212121",
 	}
+	BackgroundDim = lipgloss.AdaptiveColor{
+		Dark:  "#2c2c2c",
+		Light: "#2c2c2c",
+	}
 	BackgroundDarker = lipgloss.AdaptiveColor{
 		Dark:  "#181818",
 		Light: "#181818",
@@ -23,6 +27,25 @@ var (
 	BorderColor = lipgloss.AdaptiveColor{
 		Dark:  "#4b4c5c",
 		Light: "#4b4c5c",
+	}
+
+	Forground = lipgloss.AdaptiveColor{
+		Dark:  "#d3d3d3",
+		Light: "#d3d3d3",
+	}
+
+	ForgroundDim = lipgloss.AdaptiveColor{
+		Dark:  "#737373",
+		Light: "#737373",
+	}
+
+	BaseStyle = lipgloss.NewStyle().
+			Background(Background).
+			Foreground(Forground)
+
+	PrimaryColor = lipgloss.AdaptiveColor{
+		Dark:  "#fab283",
+		Light: "#fab283",
 	}
 )
 
