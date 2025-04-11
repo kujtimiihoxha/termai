@@ -200,6 +200,8 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			case key.Matches(msg, keys.Logs):
 				return a, a.moveToPage(page.LogsPage)
+			case msg.String() == "O":
+				return a, a.moveToPage(page.ReplPage)
 			case key.Matches(msg, keys.Help):
 				a.ToggleHelp()
 				return a, nil
@@ -292,7 +294,7 @@ func New(app *app.App) tea.Model {
 	// homedir, _ := os.UserHomeDir()
 	// configPath := filepath.Join(homedir, ".termai.yaml")
 	//
-	startPage := page.ReplPage
+	startPage := page.ChatPage
 	// if _, err := os.Stat(configPath); os.IsNotExist(err) {
 	// 	startPage = page.InitPage
 	// }
@@ -305,6 +307,7 @@ func New(app *app.App) tea.Model {
 		dialog:      core.NewDialogCmp(),
 		app:         app,
 		pages: map[page.PageID]tea.Model{
+			page.ChatPage: page.NewChatPage(app),
 			page.LogsPage: page.NewLogsPage(),
 			page.InitPage: page.NewInitPage(),
 			page.ReplPage: page.NewReplPage(app),

@@ -441,7 +441,7 @@ func NewPermissionDialogCmd(permission permission.PermissionRequest) tea.Cmd {
 		layout.WithSinglePaneBordered(true),
 		layout.WithSinglePaneFocusable(true),
 		layout.WithSinglePaneActiveColor(styles.Warning),
-		layout.WithSignlePaneBorderText(map[layout.BorderPosition]string{
+		layout.WithSinglePaneBorderText(map[layout.BorderPosition]string{
 			layout.TopMiddleBorder: " Permission Required ",
 		}),
 	)
