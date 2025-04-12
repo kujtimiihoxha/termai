@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/kujtimiihoxha/termai/internal/config"
+	"github.com/kujtimiihoxha/termai/internal/git"
 	"github.com/kujtimiihoxha/termai/internal/lsp"
 	"github.com/kujtimiihoxha/termai/internal/permission"
 )
@@ -20,12 +21,17 @@ type WriteParams struct {
 
 type WritePermissionsParams struct {
 	FilePath string `json:"file_path"`
-	Content  string `json:"content"`
+	Diff     string `json:"diff"`
 }
 
 type writeTool struct {
 	lspClients  map[string]*lsp.Client
 	permissions permission.Service
+}
+
+type WriteResponseMetadata struct {
+	Additions int `json:"additions"`
+	Removals  int `json:"removals"`
 }
 
 const (
@@ -138,6 +144,18 @@ func (w *writeTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error
 		}
 	}
 
+	sessionID, messageID := getContextValues(ctx)
+	if sessionID == "" || messageID == "" {
+		return NewTextErrorResponse("session ID or message ID is missing"), nil
+	}
+	diff, stats, err := git.GenerateGitDiffWithStats(
+		removeWorkingDirectoryPrefix(filePath),
+		oldContent,
+		params.Content,
+	)
+	if err != nil {
+		return NewTextErrorResponse(fmt.Sprintf("Failed to get file diff: %s", err)), nil
+	}
 	p := w.permissions.Request(
 		permission.CreatePermissionRequest{
 			Path:        filePath,
@@ -146,7 +164,7 @@ func (w *writeTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error
 			Description: fmt.Sprintf("Create file %s", filePath),
 			Params: WritePermissionsParams{
 				FilePath: filePath,
-				Content:  GenerateDiff(oldContent, params.Content),
+				Diff:     diff,
 			},
 		},
 	)
@@ -166,5 +184,10 @@ func (w *writeTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error
 	result := fmt.Sprintf("File successfully written: %s", filePath)
 	result = fmt.Sprintf("<result>\n%s\n</result>", result)
 	result += appendDiagnostics(filePath, w.lspClients)
-	return NewTextResponse(result), nil
+	return WithResponseMetadata(NewTextResponse(result),
+		WriteResponseMetadata{
+			Additions: stats.Additions,
+			Removals:  stats.Removals,
+		},
+	), nil
 }

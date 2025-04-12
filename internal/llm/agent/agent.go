@@ -246,6 +246,7 @@ func (c *agent) handleToolExecution(
 }
 
 func (c *agent) generate(ctx context.Context, sessionID string, content string) error {
+	ctx = context.WithValue(ctx, tools.SessionIDContextKey, sessionID)
 	messages, err := c.Messages.List(sessionID)
 	if err != nil {
 		return err
@@ -310,6 +311,8 @@ func (c *agent) generate(ctx context.Context, sessionID string, content string) 
 		if err != nil {
 			return err
 		}
+
+		ctx = context.WithValue(ctx, tools.MessageIDContextKey, assistantMsg.ID)
 		for event := range eventChan {
 			err = c.processEvent(sessionID, &assistantMsg, event)
 			if err != nil {

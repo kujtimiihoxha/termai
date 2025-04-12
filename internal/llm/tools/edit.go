@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/kujtimiihoxha/termai/internal/config"
+	"github.com/kujtimiihoxha/termai/internal/git"
 	"github.com/kujtimiihoxha/termai/internal/lsp"
 	"github.com/kujtimiihoxha/termai/internal/permission"
-	"github.com/sergi/go-diff/diffmatchpatch"
 )
 
 type EditParams struct {
@@ -22,10 +22,13 @@ type EditParams struct {
 }
 
 type EditPermissionsParams struct {
-	FilePath  string `json:"file_path"`
-	OldString string `json:"old_string"`
-	NewString string `json:"new_string"`
-	Diff      string `json:"diff"`
+	FilePath string `json:"file_path"`
+	Diff     string `json:"diff"`
+}
+
+type EditResponseMetadata struct {
+	Additions int `json:"additions"`
+	Removals  int `json:"removals"`
 }
 
 type editTool struct {
@@ -129,48 +132,77 @@ func (e *editTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error)
 	}
 
 	if params.OldString == "" {
-		result, err := e.createNewFile(params.FilePath, params.NewString)
+		result, err := e.createNewFile(ctx, params.FilePath, params.NewString)
 		if err != nil {
 			return NewTextErrorResponse(fmt.Sprintf("error creating file: %s", err)), nil
 		}
-		return NewTextResponse(result), nil
+		return WithResponseMetadata(NewTextResponse(result.text), EditResponseMetadata{
+			Additions: result.additions,
+			Removals:  result.removals,
+		}), nil
 	}
 
 	if params.NewString == "" {
-		result, err := e.deleteContent(params.FilePath, params.OldString)
+		result, err := e.deleteContent(ctx, params.FilePath, params.OldString)
 		if err != nil {
 			return NewTextErrorResponse(fmt.Sprintf("error deleting content: %s", err)), nil
 		}
-		return NewTextResponse(result), nil
+		return WithResponseMetadata(NewTextResponse(result.text), EditResponseMetadata{
+			Additions: result.additions,
+			Removals:  result.removals,
+		}), nil
 	}
 
-	result, err := e.replaceContent(params.FilePath, params.OldString, params.NewString)
+	result, err := e.replaceContent(ctx, params.FilePath, params.OldString, params.NewString)
 	if err != nil {
 		return NewTextErrorResponse(fmt.Sprintf("error replacing content: %s", err)), nil
 	}
 
 	waitForLspDiagnostics(ctx, params.FilePath, e.lspClients)
-	result = fmt.Sprintf("<result>\n%s\n</result>\n", result)
-	result += appendDiagnostics(params.FilePath, e.lspClients)
-	return NewTextResponse(result), nil
+	text := fmt.Sprintf("<result>\n%s\n</result>\n", result.text)
+	text += appendDiagnostics(params.FilePath, e.lspClients)
+	return WithResponseMetadata(NewTextResponse(text), EditResponseMetadata{
+		Additions: result.additions,
+		Removals:  result.removals,
+	}), nil
 }
 
-func (e *editTool) createNewFile(filePath, content string) (string, error) {
+type editResponse struct {
+	text      string
+	additions int
+	removals  int
+}
+
+func (e *editTool) createNewFile(ctx context.Context, filePath, content string) (editResponse, error) {
+	er := editResponse{}
 	fileInfo, err := os.Stat(filePath)
 	if err == nil {
 		if fileInfo.IsDir() {
-			return "", fmt.Errorf("path is a directory, not a file: %s", filePath)
+			return er, fmt.Errorf("path is a directory, not a file: %s", filePath)
 		}
-		return "", fmt.Errorf("file already exists: %s. Use the Replace tool to overwrite an existing file", filePath)
+		return er, fmt.Errorf("file already exists: %s. Use the Replace tool to overwrite an existing file", filePath)
 	} else if !os.IsNotExist(err) {
-		return "", fmt.Errorf("failed to access file: %w", err)
+		return er, fmt.Errorf("failed to access file: %w", err)
 	}
 
 	dir := filepath.Dir(filePath)
 	if err = os.MkdirAll(dir, 0o755); err != nil {
-		return "", fmt.Errorf("failed to create parent directories: %w", err)
+		return er, fmt.Errorf("failed to create parent directories: %w", err)
 	}
 
+	sessionID, messageID := getContextValues(ctx)
+	if sessionID == "" || messageID == "" {
+		return er, fmt.Errorf("session ID and message ID are required for creating a new file")
+	}
+
+	diff, stats, err := git.GenerateGitDiffWithStats(
+		removeWorkingDirectoryPrefix(filePath),
+		"",
+		content,
+	)
+	if err != nil {
+		return er, fmt.Errorf("failed to get file diff: %w", err)
+	}
 	p := e.permissions.Request(
 		permission.CreatePermissionRequest{
 			Path:        filepath.Dir(filePath),
@@ -178,70 +210,87 @@ func (e *editTool) createNewFile(filePath, content string) (string, error) {
 			Action:      "create",
 			Description: fmt.Sprintf("Create file %s", filePath),
 			Params: EditPermissionsParams{
-				FilePath:  filePath,
-				OldString: "",
-				NewString: content,
-				Diff:      GenerateDiff("", content),
+				FilePath: filePath,
+				Diff:     diff,
 			},
 		},
 	)
 	if !p {
-		return "", fmt.Errorf("permission denied")
+		return er, fmt.Errorf("permission denied")
 	}
 
 	err = os.WriteFile(filePath, []byte(content), 0o644)
 	if err != nil {
-		return "", fmt.Errorf("failed to write file: %w", err)
+		return er, fmt.Errorf("failed to write file: %w", err)
 	}
 
 	recordFileWrite(filePath)
 	recordFileRead(filePath)
 
-	return "File created: " + filePath, nil
+	er.text = "File created: " + filePath
+	er.additions = stats.Additions
+	er.removals = stats.Removals
+	return er, nil
 }
 
-func (e *editTool) deleteContent(filePath, oldString string) (string, error) {
+func (e *editTool) deleteContent(ctx context.Context, filePath, oldString string) (editResponse, error) {
+	er := editResponse{}
 	fileInfo, err := os.Stat(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return "", fmt.Errorf("file not found: %s", filePath)
+			return er, fmt.Errorf("file not found: %s", filePath)
 		}
-		return "", fmt.Errorf("failed to access file: %w", err)
+		return er, fmt.Errorf("failed to access file: %w", err)
 	}
 
 	if fileInfo.IsDir() {
-		return "", fmt.Errorf("path is a directory, not a file: %s", filePath)
+		return er, fmt.Errorf("path is a directory, not a file: %s", filePath)
 	}
 
 	if getLastReadTime(filePath).IsZero() {
-		return "", fmt.Errorf("you must read the file before editing it. Use the View tool first")
+		return er, fmt.Errorf("you must read the file before editing it. Use the View tool first")
 	}
 
 	modTime := fileInfo.ModTime()
 	lastRead := getLastReadTime(filePath)
 	if modTime.After(lastRead) {
-		return "", fmt.Errorf("file %s has been modified since it was last read (mod time: %s, last read: %s)",
+		return er, fmt.Errorf("file %s has been modified since it was last read (mod time: %s, last read: %s)",
 			filePath, modTime.Format(time.RFC3339), lastRead.Format(time.RFC3339))
 	}
 
 	content, err := os.ReadFile(filePath)
 	if err != nil {
-		return "", fmt.Errorf("failed to read file: %w", err)
+		return er, fmt.Errorf("failed to read file: %w", err)
 	}
 
 	oldContent := string(content)
 
 	index := strings.Index(oldContent, oldString)
 	if index == -1 {
-		return "", fmt.Errorf("old_string not found in file. Make sure it matches exactly, including whitespace and line breaks")
+		return er, fmt.Errorf("old_string not found in file. Make sure it matches exactly, including whitespace and line breaks")
 	}
 
 	lastIndex := strings.LastIndex(oldContent, oldString)
 	if index != lastIndex {
-		return "", fmt.Errorf("old_string appears multiple times in the file. Please provide more context to ensure a unique match")
+		return er, fmt.Errorf("old_string appears multiple times in the file. Please provide more context to ensure a unique match")
 	}
 
 	newContent := oldContent[:index] + oldContent[index+len(oldString):]
+
+	sessionID, messageID := getContextValues(ctx)
+
+	if sessionID == "" || messageID == "" {
+		return er, fmt.Errorf("session ID and message ID are required for creating a new file")
+	}
+
+	diff, stats, err := git.GenerateGitDiffWithStats(
+		removeWorkingDirectoryPrefix(filePath),
+		oldContent,
+		newContent,
+	)
+	if err != nil {
+		return er, fmt.Errorf("failed to get file diff: %w", err)
+	}
 
 	p := e.permissions.Request(
 		permission.CreatePermissionRequest{
@@ -250,76 +299,85 @@ func (e *editTool) deleteContent(filePath, oldString string) (string, error) {
 			Action:      "delete",
 			Description: fmt.Sprintf("Delete content from file %s", filePath),
 			Params: EditPermissionsParams{
-				FilePath:  filePath,
-				OldString: oldString,
-				NewString: "",
-				Diff:      GenerateDiff(oldContent, newContent),
+				FilePath: filePath,
+				Diff:     diff,
 			},
 		},
 	)
 	if !p {
-		return "", fmt.Errorf("permission denied")
+		return er, fmt.Errorf("permission denied")
 	}
 
 	err = os.WriteFile(filePath, []byte(newContent), 0o644)
 	if err != nil {
-		return "", fmt.Errorf("failed to write file: %w", err)
+		return er, fmt.Errorf("failed to write file: %w", err)
 	}
-
 	recordFileWrite(filePath)
 	recordFileRead(filePath)
 
-	return "Content deleted from file: " + filePath, nil
+	er.text = "Content deleted from file: " + filePath
+	er.additions = stats.Additions
+	er.removals = stats.Removals
+	return er, nil
 }
 
-func (e *editTool) replaceContent(filePath, oldString, newString string) (string, error) {
+func (e *editTool) replaceContent(ctx context.Context, filePath, oldString, newString string) (editResponse, error) {
+	er := editResponse{}
 	fileInfo, err := os.Stat(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return "", fmt.Errorf("file not found: %s", filePath)
+			return er, fmt.Errorf("file not found: %s", filePath)
 		}
-		return "", fmt.Errorf("failed to access file: %w", err)
+		return er, fmt.Errorf("failed to access file: %w", err)
 	}
 
 	if fileInfo.IsDir() {
-		return "", fmt.Errorf("path is a directory, not a file: %s", filePath)
+		return er, fmt.Errorf("path is a directory, not a file: %s", filePath)
 	}
 
 	if getLastReadTime(filePath).IsZero() {
-		return "", fmt.Errorf("you must read the file before editing it. Use the View tool first")
+		return er, fmt.Errorf("you must read the file before editing it. Use the View tool first")
 	}
 
 	modTime := fileInfo.ModTime()
 	lastRead := getLastReadTime(filePath)
 	if modTime.After(lastRead) {
-		return "", fmt.Errorf("file %s has been modified since it was last read (mod time: %s, last read: %s)",
+		return er, fmt.Errorf("file %s has been modified since it was last read (mod time: %s, last read: %s)",
 			filePath, modTime.Format(time.RFC3339), lastRead.Format(time.RFC3339))
 	}
 
 	content, err := os.ReadFile(filePath)
 	if err != nil {
-		return "", fmt.Errorf("failed to read file: %w", err)
+		return er, fmt.Errorf("failed to read file: %w", err)
 	}
 
 	oldContent := string(content)
 
 	index := strings.Index(oldContent, oldString)
 	if index == -1 {
-		return "", fmt.Errorf("old_string not found in file. Make sure it matches exactly, including whitespace and line breaks")
+		return er, fmt.Errorf("old_string not found in file. Make sure it matches exactly, including whitespace and line breaks")
 	}
 
 	lastIndex := strings.LastIndex(oldContent, oldString)
 	if index != lastIndex {
-		return "", fmt.Errorf("old_string appears multiple times in the file. Please provide more context to ensure a unique match")
+		return er, fmt.Errorf("old_string appears multiple times in the file. Please provide more context to ensure a unique match")
 	}
 
 	newContent := oldContent[:index] + newString + oldContent[index+len(oldString):]
 
-	startIndex := max(0, index-3)
-	oldEndIndex := min(len(oldContent), index+len(oldString)+3)
-	newEndIndex := min(len(newContent), index+len(newString)+3)
+	sessionID, messageID := getContextValues(ctx)
 
-	diff := GenerateDiff(oldContent[startIndex:oldEndIndex], newContent[startIndex:newEndIndex])
+	if sessionID == "" || messageID == "" {
+		return er, fmt.Errorf("session ID and message ID are required for creating a new file")
+	}
+	diff, stats, err := git.GenerateGitDiffWithStats(
+		removeWorkingDirectoryPrefix(filePath),
+		oldContent,
+		newContent,
+	)
+	if err != nil {
+		return er, fmt.Errorf("failed to get file diff: %w", err)
+	}
 
 	p := e.permissions.Request(
 		permission.CreatePermissionRequest{
@@ -328,75 +386,27 @@ func (e *editTool) replaceContent(filePath, oldString, newString string) (string
 			Action:      "replace",
 			Description: fmt.Sprintf("Replace content in file %s", filePath),
 			Params: EditPermissionsParams{
-				FilePath:  filePath,
-				OldString: oldString,
-				NewString: newString,
-				Diff:      diff,
+				FilePath: filePath,
+
+				Diff: diff,
 			},
 		},
 	)
 	if !p {
-		return "", fmt.Errorf("permission denied")
+		return er, fmt.Errorf("permission denied")
 	}
 
 	err = os.WriteFile(filePath, []byte(newContent), 0o644)
 	if err != nil {
-		return "", fmt.Errorf("failed to write file: %w", err)
+		return er, fmt.Errorf("failed to write file: %w", err)
 	}
 
 	recordFileWrite(filePath)
 	recordFileRead(filePath)
+	er.text = "Content replaced in file: " + filePath
+	er.additions = stats.Additions
+	er.removals = stats.Removals
 
-	return "Content replaced in file: " + filePath, nil
+	return er, nil
 }
 
-func GenerateDiff(oldContent, newContent string) string {
-	dmp := diffmatchpatch.New()
-	fileAdmp, fileBdmp, dmpStrings := dmp.DiffLinesToChars(oldContent, newContent)
-	diffs := dmp.DiffMain(fileAdmp, fileBdmp, false)
-	diffs = dmp.DiffCharsToLines(diffs, dmpStrings)
-	diffs = dmp.DiffCleanupSemantic(diffs)
-	buff := strings.Builder{}
-
-	buff.WriteString("Changes:\n")
-
-	for _, diff := range diffs {
-		text := diff.Text
-
-		switch diff.Type {
-		case diffmatchpatch.DiffInsert:
-			for line := range strings.SplitSeq(text, "\n") {
-				if line == "" {
-					continue
-				}
-				_, _ = buff.WriteString("+ " + line + "\n")
-			}
-		case diffmatchpatch.DiffDelete:
-			for line := range strings.SplitSeq(text, "\n") {
-				if line == "" {
-					continue
-				}
-				_, _ = buff.WriteString("- " + line + "\n")
-			}
-		case diffmatchpatch.DiffEqual:
-			lines := strings.Split(text, "\n")
-			if len(lines) > 3 {
-				if lines[0] != "" {
-					_, _ = buff.WriteString("  " + lines[0] + "\n")
-				}
-				_, _ = buff.WriteString("  ...\n")
-				if lines[len(lines)-1] != "" {
-					_, _ = buff.WriteString("  " + lines[len(lines)-1] + "\n")
-				}
-			} else {
-				for _, line := range lines {
-					if line == "" {
-						continue
-					}
-					_, _ = buff.WriteString("  " + line + "\n")
-				}
-			}
-		}
-	}
-	return buff.String()
-}

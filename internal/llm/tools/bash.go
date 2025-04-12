@@ -22,7 +22,7 @@ type BashPermissionsParams struct {
 	Timeout int    `json:"timeout"`
 }
 
-type BashToolResponseMetadata struct {
+type BashResponseMetadata struct {
 	Took int64 `json:"took"`
 }
 type bashTool struct {
@@ -310,7 +310,7 @@ func (b *bashTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error)
 		stdout += "\n" + errorMessage
 	}
 
-	metadata := BashToolResponseMetadata{
+	metadata := BashResponseMetadata{
 		Took: took,
 	}
 	if stdout == "" {

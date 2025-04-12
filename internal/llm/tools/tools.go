@@ -17,6 +17,9 @@ type toolResponseType string
 const (
 	ToolResponseTypeText  toolResponseType = "text"
 	ToolResponseTypeImage toolResponseType = "image"
+
+	SessionIDContextKey = "session_id"
+	MessageIDContextKey = "message_id"
 )
 
 type ToolResponse struct {
@@ -61,4 +64,16 @@ type ToolCall struct {
 type BaseTool interface {
 	Info() ToolInfo
 	Run(ctx context.Context, params ToolCall) (ToolResponse, error)
+}
+
+func getContextValues(ctx context.Context) (string, string) {
+	sessionID := ctx.Value(SessionIDContextKey)
+	messageID := ctx.Value(MessageIDContextKey)
+	if sessionID == nil {
+		return "", ""
+	}
+	if messageID == nil {
+		return sessionID.(string), ""
+	}
+	return sessionID.(string), messageID.(string)
 }

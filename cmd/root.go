@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/kujtimiihoxha/termai/internal/app"
+	"github.com/kujtimiihoxha/termai/internal/assets"
 	"github.com/kujtimiihoxha/termai/internal/config"
 	"github.com/kujtimiihoxha/termai/internal/db"
 	"github.com/kujtimiihoxha/termai/internal/llm/agent"
@@ -28,6 +29,9 @@ var rootCmd = &cobra.Command{
 		}
 		debug, _ := cmd.Flags().GetBool("debug")
 		err := config.Load(debug)
+		if err != nil {
+			return err
+		}
 		cfg := config.Get()
 		defaultLevel := slog.LevelInfo
 		if cfg.Debug {
@@ -38,9 +42,11 @@ var rootCmd = &cobra.Command{
 		}))
 		slog.SetDefault(logger)
 
+		err = assets.WriteAssets()
 		if err != nil {
 			return err
 		}
+
 		conn, err := db.Connect()
 		if err != nil {
 			return err
