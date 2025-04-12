@@ -2,6 +2,9 @@ package message
 
 import (
 	"encoding/base64"
+	"time"
+
+	"github.com/kujtimiihoxha/termai/internal/llm/models"
 )
 
 type MessageRole string
@@ -73,6 +76,7 @@ type ToolResult struct {
 	ToolCallID string `json:"tool_call_id"`
 	Name       string `json:"name"`
 	Content    string `json:"content"`
+	Metadata   string `json:"metadata"`
 	IsError    bool   `json:"is_error"`
 }
 
@@ -80,6 +84,7 @@ func (ToolResult) isPart() {}
 
 type Finish struct {
 	Reason string `json:"reason"`
+	Time   int64  `json:"time"`
 }
 
 func (Finish) isPart() {}
@@ -89,6 +94,7 @@ type Message struct {
 	Role      MessageRole
 	SessionID string
 	Parts     []ContentPart
+	Model     models.ModelID
 
 	CreatedAt int64
 	UpdatedAt int64
@@ -159,6 +165,15 @@ func (m *Message) IsFinished() bool {
 		}
 	}
 	return false
+}
+
+func (m *Message) FinishPart() *Finish {
+	for _, part := range m.Parts {
+		if c, ok := part.(Finish); ok {
+			return &c
+		}
+	}
+	return nil
 }
 
 func (m *Message) FinishReason() string {
@@ -232,7 +247,7 @@ func (m *Message) SetToolResults(tr []ToolResult) {
 }
 
 func (m *Message) AddFinish(reason string) {
-	m.Parts = append(m.Parts, Finish{Reason: reason})
+	m.Parts = append(m.Parts, Finish{Reason: reason, Time: time.Now().Unix()})
 }
 
 func (m *Message) AddImageURL(url, detail string) {

@@ -102,12 +102,25 @@ TermAI is built with a modular architecture:
 git clone https://github.com/kujtimiihoxha/termai.git
 cd termai
 
+# Build the diff script first
+go run cmd/diff/main.go
+
 # Build
 go build -o termai
 
 # Run
 ./termai
 ```
+
+### Important: Building the Diff Script
+
+Before building or running the application, you must first build the diff script by running:
+
+```bash
+go run cmd/diff/main.go
+```
+
+This command generates the necessary JavaScript file (`index.mjs`) used by the diff functionality in the application.
 
 ## Acknowledgments
 

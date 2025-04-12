@@ -1,6 +1,7 @@
 package styles
 
 const (
+	OpenCodeIcon string = "⌬"
 	SessionsIcon string = "󰧑"
 	ChatIcon     string = "󰭹"
 
