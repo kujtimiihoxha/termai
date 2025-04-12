@@ -24,8 +24,10 @@ CREATE TABLE IF NOT EXISTS messages (
     session_id TEXT NOT NULL,
     role TEXT NOT NULL,
     parts TEXT NOT NULL default '[]',
+    model TEXT,
     created_at INTEGER NOT NULL,  -- Unix timestamp in milliseconds
     updated_at INTEGER NOT NULL,  -- Unix timestamp in milliseconds
+    finished_at INTEGER,  -- Unix timestamp in milliseconds
     FOREIGN KEY (session_id) REFERENCES sessions (id) ON DELETE CASCADE
 );
 

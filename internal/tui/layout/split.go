@@ -10,6 +10,9 @@ import (
 type SplitPaneLayout interface {
 	tea.Model
 	Sizeable
+	SetLeftPanel(panel Container)
+	SetRightPanel(panel Container)
+	SetBottomPanel(panel Container)
 }
 
 type splitPaneLayout struct {
@@ -158,6 +161,27 @@ func (s *splitPaneLayout) SetSize(width, height int) {
 
 func (s *splitPaneLayout) GetSize() (int, int) {
 	return s.width, s.height
+}
+
+func (s *splitPaneLayout) SetLeftPanel(panel Container) {
+	s.leftPanel = panel
+	if s.width > 0 && s.height > 0 {
+		s.SetSize(s.width, s.height)
+	}
+}
+
+func (s *splitPaneLayout) SetRightPanel(panel Container) {
+	s.rightPanel = panel
+	if s.width > 0 && s.height > 0 {
+		s.SetSize(s.width, s.height)
+	}
+}
+
+func (s *splitPaneLayout) SetBottomPanel(panel Container) {
+	s.bottomPanel = panel
+	if s.width > 0 && s.height > 0 {
+		s.SetSize(s.width, s.height)
+	}
 }
 
 func (s *splitPaneLayout) BindingKeys() []key.Binding {

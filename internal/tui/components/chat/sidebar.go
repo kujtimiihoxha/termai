@@ -5,40 +5,43 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/kujtimiihoxha/termai/internal/config"
+	"github.com/kujtimiihoxha/termai/internal/session"
 	"github.com/kujtimiihoxha/termai/internal/tui/styles"
-	"github.com/kujtimiihoxha/termai/internal/version"
 )
 
 type sidebarCmp struct {
 	width, height int
+	session       session.Session
 }
 
 func (m *sidebarCmp) Init() tea.Cmd {
 	return nil
 }
 
-func (m *sidebarCmp) Update(tea.Msg) (tea.Model, tea.Cmd) {
+func (m *sidebarCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
 func (m *sidebarCmp) View() string {
-	return styles.BaseStyle.Width(m.width).Render(
-		lipgloss.JoinVertical(
-			lipgloss.Top,
-			m.header(),
-			" ",
-			m.session(),
-			" ",
-			m.modifiedFiles(),
-			" ",
-			m.lspsConfigured(),
-		),
-	)
+	return styles.BaseStyle.
+		Width(m.width).
+		Height(m.height - 1).
+		Render(
+			lipgloss.JoinVertical(
+				lipgloss.Top,
+				header(m.width),
+				" ",
+				m.sessionSection(),
+				" ",
+				m.modifiedFiles(),
+				" ",
+				lspsConfigured(m.width),
+			),
+		)
 }
 
-func (m *sidebarCmp) session() string {
-	sessionKey := styles.BaseStyle.Foreground(styles.PrimaryColor).Render("Session")
+func (m *sidebarCmp) sessionSection() string {
+	sessionKey := styles.BaseStyle.Foreground(styles.PrimaryColor).Bold(true).Render("Session")
 	sessionValue := styles.BaseStyle.
 		Foreground(styles.Forground).
 		Width(m.width - lipgloss.Width(sessionKey)).
@@ -53,11 +56,11 @@ func (m *sidebarCmp) session() string {
 func (m *sidebarCmp) modifiedFile(filePath string, additions, removals int) string {
 	stats := ""
 	if additions > 0 && removals > 0 {
-		stats = styles.BaseStyle.Foreground(styles.ForgroundDim).Render(fmt.Sprintf("%d additions and  %d removals", additions, removals))
+		stats = styles.BaseStyle.Foreground(styles.ForgroundDim).Render(fmt.Sprintf(" %d additions and  %d removals", additions, removals))
 	} else if additions > 0 {
-		stats = styles.BaseStyle.Foreground(styles.ForgroundDim).Render(fmt.Sprintf("%d additions", additions))
+		stats = styles.BaseStyle.Foreground(styles.ForgroundDim).Render(fmt.Sprintf(" %d additions", additions))
 	} else if removals > 0 {
-		stats = styles.BaseStyle.Foreground(styles.ForgroundDim).Render(fmt.Sprintf("%d removals", removals))
+		stats = styles.BaseStyle.Foreground(styles.ForgroundDim).Render(fmt.Sprintf(" %d removals", removals))
 	}
 	filePathStr := styles.BaseStyle.Foreground(styles.Forground).Render(filePath)
 
@@ -67,60 +70,13 @@ func (m *sidebarCmp) modifiedFile(filePath string, additions, removals int) stri
 			lipgloss.JoinHorizontal(
 				lipgloss.Left,
 				filePathStr,
-				" ",
 				stats,
 			),
 		)
 }
 
-func (m *sidebarCmp) lspsConfigured() string {
-	lsps := styles.BaseStyle.Width(m.width).Foreground(styles.PrimaryColor).Render("LSP Configuration:")
-	lspsConfigured := []struct {
-		name string
-		path string
-	}{
-		{"golsp", "path/to/lsp1"},
-		{"vtsls", "path/to/lsp2"},
-	}
-
-	var lspViews []string
-	for _, lsp := range lspsConfigured {
-		lspName := styles.BaseStyle.Foreground(styles.Forground).Render(
-			fmt.Sprintf("• %s", lsp.name),
-		)
-		lspPath := styles.BaseStyle.Foreground(styles.ForgroundDim).Render(
-			fmt.Sprintf("(%s)", lsp.path),
-		)
-		lspViews = append(lspViews,
-			styles.BaseStyle.
-				Width(m.width).
-				Render(
-					lipgloss.JoinHorizontal(
-						lipgloss.Left,
-						lspName,
-						" ",
-						lspPath,
-					),
-				),
-		)
-
-	}
-	return styles.BaseStyle.
-		Width(m.width).
-		Render(
-			lipgloss.JoinVertical(
-				lipgloss.Left,
-				lsps,
-				lipgloss.JoinVertical(
-					lipgloss.Left,
-					lspViews...,
-				),
-			),
-		)
-}
-
 func (m *sidebarCmp) modifiedFiles() string {
-	modifiedFiles := styles.BaseStyle.Width(m.width).Foreground(styles.PrimaryColor).Render("Modified Files:")
+	modifiedFiles := styles.BaseStyle.Width(m.width).Foreground(styles.PrimaryColor).Bold(true).Render("Modified Files:")
 	files := []struct {
 		path      string
 		additions int
@@ -149,41 +105,6 @@ func (m *sidebarCmp) modifiedFiles() string {
 		)
 }
 
-func (m *sidebarCmp) logo() string {
-	logo := fmt.Sprintf("%s %s", styles.OpenCodeIcon, "OpenCode")
-
-	version := styles.BaseStyle.Foreground(styles.ForgroundDim).Render(version.Version)
-
-	return styles.BaseStyle.
-		Bold(true).
-		Width(m.width).
-		Render(
-			lipgloss.JoinHorizontal(
-				lipgloss.Left,
-				logo,
-				" ",
-				version,
-			),
-		)
-}
-
-func (m *sidebarCmp) header() string {
-	header := lipgloss.JoinVertical(
-		lipgloss.Top,
-		m.logo(),
-		m.cwd(),
-	)
-	return header
-}
-
-func (m *sidebarCmp) cwd() string {
-	cwd := fmt.Sprintf("cwd: %s", config.WorkingDirectory())
-	return styles.BaseStyle.
-		Foreground(styles.ForgroundDim).
-		Width(m.width).
-		Render(cwd)
-}
-
 func (m *sidebarCmp) SetSize(width, height int) {
 	m.width = width
 	m.height = height
@@ -193,6 +114,8 @@ func (m *sidebarCmp) GetSize() (int, int) {
 	return m.width, m.height
 }
 
-func NewSidebarCmp() tea.Model {
-	return &sidebarCmp{}
+func NewSidebarCmp(session session.Session) tea.Model {
+	return &sidebarCmp{
+		session: session,
+	}
 }

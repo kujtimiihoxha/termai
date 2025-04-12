@@ -2,17 +2,20 @@ package message
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/kujtimiihoxha/termai/internal/db"
+	"github.com/kujtimiihoxha/termai/internal/llm/models"
 	"github.com/kujtimiihoxha/termai/internal/pubsub"
 )
 
 type CreateMessageParams struct {
 	Role  MessageRole
 	Parts []ContentPart
+	Model models.ModelID
 }
 
 type Service interface {
@@ -68,6 +71,7 @@ func (s *service) Create(sessionID string, params CreateMessageParams) (Message,
 		SessionID: sessionID,
 		Role:      string(params.Role),
 		Parts:     string(partsJSON),
+		Model:     sql.NullString{String: string(params.Model), Valid: true},
 	})
 	if err != nil {
 		return Message{}, err
@@ -101,9 +105,15 @@ func (s *service) Update(message Message) error {
 	if err != nil {
 		return err
 	}
+	finishedAt := sql.NullInt64{}
+	if f := message.FinishPart(); f != nil {
+		finishedAt.Int64 = f.Time
+		finishedAt.Valid = true
+	}
 	err = s.q.UpdateMessage(s.ctx, db.UpdateMessageParams{
-		ID:    message.ID,
-		Parts: string(parts),
+		ID:         message.ID,
+		Parts:      string(parts),
+		FinishedAt: finishedAt,
 	})
 	if err != nil {
 		return err
