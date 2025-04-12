@@ -515,6 +515,7 @@ var ASCIIStyleConfig = ansi.StyleConfig{
 	Document: ansi.StyleBlock{
 		StylePrimitive: ansi.StylePrimitive{
 			BackgroundColor: stringPtr(Background.Dark),
+			Color:           stringPtr(ForgroundDim.Dark),
 		},
 		Indent:      uintPtr(1),
 		IndentToken: stringPtr(BaseStyle.Render(" ")),
@@ -688,7 +689,7 @@ var DraculaStyleConfig = ansi.StyleConfig{
 	Heading: ansi.StyleBlock{
 		StylePrimitive: ansi.StylePrimitive{
 			BlockSuffix:     "\n",
-			Color:           stringPtr("#bd93f9"),
+			Color:           stringPtr(PrimaryColor.Dark),
 			Bold:            boolPtr(true),
 			BackgroundColor: stringPtr(Background.Dark),
 		},
@@ -740,7 +741,7 @@ var DraculaStyleConfig = ansi.StyleConfig{
 	},
 	Strong: ansi.StylePrimitive{
 		Bold:            boolPtr(true),
-		Color:           stringPtr("#ffb86c"),
+		Color:           stringPtr(Blue.Dark),
 		BackgroundColor: stringPtr(Background.Dark),
 	},
 	HorizontalRule: ansi.StylePrimitive{
@@ -796,7 +797,7 @@ var DraculaStyleConfig = ansi.StyleConfig{
 	CodeBlock: ansi.StyleCodeBlock{
 		StyleBlock: ansi.StyleBlock{
 			StylePrimitive: ansi.StylePrimitive{
-				Color:           stringPtr("#ffb86c"),
+				Color:           stringPtr(Blue.Dark),
 				BackgroundColor: stringPtr(Background.Dark),
 			},
 			Margin: uintPtr(defaultMargin),

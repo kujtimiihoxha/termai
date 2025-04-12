@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/kujtimiihoxha/termai/internal/config"
 	"github.com/kujtimiihoxha/termai/internal/llm/tools/shell"
@@ -21,6 +22,9 @@ type BashPermissionsParams struct {
 	Timeout int    `json:"timeout"`
 }
 
+type BashToolResponseMetadata struct {
+	Took int64 `json:"took"`
+}
 type bashTool struct {
 	permissions permission.Service
 }
@@ -272,11 +276,13 @@ func (b *bashTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error)
 			return NewTextErrorResponse("permission denied"), nil
 		}
 	}
+	startTime := time.Now()
 	shell := shell.GetPersistentShell(config.WorkingDirectory())
 	stdout, stderr, exitCode, interrupted, err := shell.Exec(ctx, params.Command, params.Timeout)
 	if err != nil {
 		return NewTextErrorResponse(fmt.Sprintf("error executing command: %s", err)), nil
 	}
+	took := time.Since(startTime).Milliseconds()
 
 	stdout = truncateOutput(stdout)
 	stderr = truncateOutput(stderr)
@@ -304,10 +310,13 @@ func (b *bashTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error)
 		stdout += "\n" + errorMessage
 	}
 
-	if stdout == "" {
-		return NewTextResponse("no output"), nil
+	metadata := BashToolResponseMetadata{
+		Took: took,
 	}
-	return NewTextResponse(stdout), nil
+	if stdout == "" {
+		return WithResponseMetadata(NewTextResponse("no output"), metadata), nil
+	}
+	return WithResponseMetadata(NewTextResponse(stdout), metadata), nil
 }
 
 func truncateOutput(content string) string {

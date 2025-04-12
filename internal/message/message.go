@@ -155,6 +155,7 @@ func (s *service) fromDBItem(item db.Message) (Message, error) {
 		SessionID: item.SessionID,
 		Role:      MessageRole(item.Role),
 		Parts:     parts,
+		Model:     models.ModelID(item.Model.String),
 		CreatedAt: item.CreatedAt,
 		UpdatedAt: item.UpdatedAt,
 	}, nil

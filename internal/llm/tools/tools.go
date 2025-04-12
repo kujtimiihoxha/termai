@@ -1,6 +1,9 @@
 package tools
 
-import "context"
+import (
+	"context"
+	"encoding/json"
+)
 
 type ToolInfo struct {
 	Name        string
@@ -17,9 +20,10 @@ const (
 )
 
 type ToolResponse struct {
-	Type    toolResponseType `json:"type"`
-	Content string           `json:"content"`
-	IsError bool             `json:"is_error"`
+	Type     toolResponseType `json:"type"`
+	Content  string           `json:"content"`
+	Metadata string           `json:"metadata,omitempty"`
+	IsError  bool             `json:"is_error"`
 }
 
 func NewTextResponse(content string) ToolResponse {
@@ -27,6 +31,17 @@ func NewTextResponse(content string) ToolResponse {
 		Type:    ToolResponseTypeText,
 		Content: content,
 	}
+}
+
+func WithResponseMetadata(response ToolResponse, metadata any) ToolResponse {
+	if metadata != nil {
+		metadataBytes, err := json.Marshal(metadata)
+		if err != nil {
+			return response
+		}
+		response.Metadata = string(metadataBytes)
+	}
+	return response
 }
 
 func NewTextErrorResponse(content string) ToolResponse {

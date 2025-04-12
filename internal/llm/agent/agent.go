@@ -305,6 +305,7 @@ func (c *agent) generate(ctx context.Context, sessionID string, content string) 
 		assistantMsg, err := c.Messages.Create(sessionID, message.CreateMessageParams{
 			Role:  message.Assistant,
 			Parts: []message.ContentPart{},
+			Model: c.model.ID,
 		})
 		if err != nil {
 			return err
