@@ -7,10 +7,12 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/kujtimiihoxha/termai/internal/tui/layout"
 	"github.com/kujtimiihoxha/termai/internal/tui/styles"
+	"github.com/kujtimiihoxha/termai/internal/tui/util"
 )
 
 type editorCmp struct {
-	textarea textarea.Model
+	textarea     textarea.Model
+	agentWorking bool
 }
 
 type focusedEditorKeyMaps struct {
@@ -49,39 +51,51 @@ func (m *editorCmp) Init() tea.Cmd {
 	return textarea.Blink
 }
 
-func (m *editorCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-	if m.textarea.Focused() {
-		switch msg := msg.(type) {
-		case tea.KeyMsg:
-			if key.Matches(msg, focusedKeyMaps.Send) {
-				// TODO: send message
-				m.textarea.Reset()
-				m.textarea.Blur()
-				return m, nil
-			}
-			if key.Matches(msg, focusedKeyMaps.Blur) {
-				m.textarea.Blur()
-				return m, nil
-			}
-		}
-		m.textarea, cmd = m.textarea.Update(msg)
-		return m, cmd
-	}
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		if key.Matches(msg, bluredKeyMaps.Send) {
-			// TODO: send message
-			m.textarea.Reset()
-			return m, nil
-		}
-		if key.Matches(msg, bluredKeyMaps.Focus) {
-			m.textarea.Focus()
-			return m, textarea.Blink
-		}
+func (m *editorCmp) send() tea.Cmd {
+	if m.agentWorking {
+		return util.ReportWarn("Agent is working, please wait...")
 	}
 
-	return m, nil
+	value := m.textarea.Value()
+	m.textarea.Reset()
+	m.textarea.Blur()
+	if value == "" {
+		return nil
+	}
+	return tea.Batch(
+		util.CmdHandler(SendMsg{
+			Text: value,
+		}),
+		util.CmdHandler(AgentWorkingMsg(true)),
+		util.CmdHandler(EditorFocusMsg(false)),
+	)
+}
+
+func (m *editorCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	switch msg := msg.(type) {
+	case AgentWorkingMsg:
+		m.agentWorking = bool(msg)
+	case tea.KeyMsg:
+		if key.Matches(msg, focusedKeyMaps.Send) {
+			return m, m.send()
+		}
+		if key.Matches(msg, bluredKeyMaps.Send) {
+			return m, m.send()
+		}
+		if key.Matches(msg, focusedKeyMaps.Blur) {
+			m.textarea.Blur()
+			return m, util.CmdHandler(EditorFocusMsg(false))
+		}
+		if key.Matches(msg, bluredKeyMaps.Focus) {
+			if !m.textarea.Focused() {
+				m.textarea.Focus()
+				return m, tea.Batch(textarea.Blink, util.CmdHandler(EditorFocusMsg(true)))
+			}
+		}
+	}
+	m.textarea, cmd = m.textarea.Update(msg)
+	return m, cmd
 }
 
 func (m *editorCmp) View() string {
@@ -122,6 +136,7 @@ func NewEditorCmp() tea.Model {
 	ti.FocusedStyle.CursorLine = ti.FocusedStyle.CursorLine.Background(styles.Background)
 	ti.FocusedStyle.Placeholder = ti.FocusedStyle.Placeholder.Background(styles.Background)
 	ti.FocusedStyle.Text = ti.BlurredStyle.Text.Background(styles.Background)
+	ti.CharLimit = -1
 	ti.Focus()
 	return &editorCmp{
 		textarea: ti,

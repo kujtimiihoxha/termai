@@ -15,10 +15,11 @@ INSERT INTO messages (
     session_id,
     role,
     parts,
+    model,
     created_at,
     updated_at
 ) VALUES (
-    ?, ?, ?, ?, strftime('%s', 'now'), strftime('%s', 'now')
+    ?, ?, ?, ?, ?, strftime('%s', 'now'), strftime('%s', 'now')
 )
 RETURNING *;
 
@@ -26,8 +27,10 @@ RETURNING *;
 UPDATE messages
 SET
     parts = ?,
+    finished_at = ?,
     updated_at = strftime('%s', 'now')
 WHERE id = ?;
+
 
 -- name: DeleteMessage :exec
 DELETE FROM messages

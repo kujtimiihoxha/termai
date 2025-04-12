@@ -2,6 +2,7 @@ package message
 
 import (
 	"encoding/base64"
+	"time"
 )
 
 type MessageRole string
@@ -64,6 +65,7 @@ type ToolCall struct {
 	Name     string `json:"name"`
 	Input    string `json:"input"`
 	Type     string `json:"type"`
+	Metadata any    `json:"metadata"`
 	Finished bool   `json:"finished"`
 }
 
@@ -80,6 +82,7 @@ func (ToolResult) isPart() {}
 
 type Finish struct {
 	Reason string `json:"reason"`
+	Time   int64  `json:"time"`
 }
 
 func (Finish) isPart() {}
@@ -161,6 +164,15 @@ func (m *Message) IsFinished() bool {
 	return false
 }
 
+func (m *Message) FinishPart() *Finish {
+	for _, part := range m.Parts {
+		if c, ok := part.(Finish); ok {
+			return &c
+		}
+	}
+	return nil
+}
+
 func (m *Message) FinishReason() string {
 	for _, part := range m.Parts {
 		if c, ok := part.(Finish); ok {
@@ -232,7 +244,7 @@ func (m *Message) SetToolResults(tr []ToolResult) {
 }
 
 func (m *Message) AddFinish(reason string) {
-	m.Parts = append(m.Parts, Finish{Reason: reason})
+	m.Parts = append(m.Parts, Finish{Reason: reason, Time: time.Now().Unix()})
 }
 
 func (m *Message) AddImageURL(url, detail string) {
