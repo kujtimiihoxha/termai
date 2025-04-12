@@ -3,6 +3,8 @@ package tools
 import (
 	"sync"
 	"time"
+
+	"github.com/kujtimiihoxha/termai/internal/config"
 )
 
 // File record to track when files were read/written
@@ -16,6 +18,14 @@ var (
 	fileRecords     = make(map[string]fileRecord)
 	fileRecordMutex sync.RWMutex
 )
+
+func removeWorkingDirectoryPrefix(path string) string {
+	wd := config.WorkingDirectory()
+	if len(path) > len(wd) && path[:len(wd)] == wd {
+		return path[len(wd)+1:]
+	}
+	return path
+}
 
 func recordFileRead(path string) {
 	fileRecordMutex.Lock()

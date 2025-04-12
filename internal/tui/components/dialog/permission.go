@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/kujtimiihoxha/termai/internal/git"
 	"github.com/kujtimiihoxha/termai/internal/llm/tools"
 	"github.com/kujtimiihoxha/termai/internal/permission"
 	"github.com/kujtimiihoxha/termai/internal/tui/components/core"
@@ -234,7 +235,6 @@ func (p *permissionDialogCmp) render() string {
 		headerContent = lipgloss.NewStyle().Padding(0, 1).Render(lipgloss.JoinVertical(lipgloss.Left, headerParts...))
 
 		// Format the diff with colors
-		formattedDiff := formatDiff(pr.Diff)
 
 		// Set up viewport for the diff content
 		p.contentViewPort.Width = p.width - 2 - 2
@@ -242,7 +242,11 @@ func (p *permissionDialogCmp) render() string {
 		// Calculate content height dynamically based on window size
 		maxContentHeight := p.height - lipgloss.Height(headerContent) - lipgloss.Height(form) - 2 - 2 - 1
 		p.contentViewPort.Height = maxContentHeight
-		p.contentViewPort.SetContent(formattedDiff)
+		diff, err := git.FormatDiff(pr.Diff, p.contentViewPort.Width)
+		if err != nil {
+			diff = fmt.Sprintf("Error formatting diff: %v", err)
+		}
+		p.contentViewPort.SetContent(diff)
 
 		// Style the viewport
 		var contentBorder lipgloss.Border
@@ -281,16 +285,17 @@ func (p *permissionDialogCmp) render() string {
 		// Recreate header content with the updated headerParts
 		headerContent = lipgloss.NewStyle().Padding(0, 1).Render(lipgloss.JoinVertical(lipgloss.Left, headerParts...))
 
-		// Format the diff with colors
-		formattedDiff := formatDiff(pr.Content)
-
 		// Set up viewport for the content
 		p.contentViewPort.Width = p.width - 2 - 2
 
 		// Calculate content height dynamically based on window size
 		maxContentHeight := p.height - lipgloss.Height(headerContent) - lipgloss.Height(form) - 2 - 2 - 1
 		p.contentViewPort.Height = maxContentHeight
-		p.contentViewPort.SetContent(formattedDiff)
+		diff, err := git.FormatDiff(pr.Diff, p.contentViewPort.Width)
+		if err != nil {
+			diff = fmt.Sprintf("Error formatting diff: %v", err)
+		}
+		p.contentViewPort.SetContent(diff)
 
 		// Style the viewport
 		var contentBorder lipgloss.Border
