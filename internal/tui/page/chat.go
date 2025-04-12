@@ -1,9 +1,10 @@
 package page
 
 import (
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/kujtimiihoxha/termai/internal/app"
-	"github.com/kujtimiihoxha/termai/internal/message"
+	"github.com/kujtimiihoxha/termai/internal/llm/agent"
 	"github.com/kujtimiihoxha/termai/internal/session"
 	"github.com/kujtimiihoxha/termai/internal/tui/components/chat"
 	"github.com/kujtimiihoxha/termai/internal/tui/layout"
@@ -18,8 +19,32 @@ type chatPage struct {
 	session session.Session
 }
 
+type ChatKeyMap struct {
+	NewSession key.Binding
+}
+
+var keyMap = ChatKeyMap{
+	NewSession: key.NewBinding(
+		key.WithKeys("ctrl+n"),
+		key.WithHelp("ctrl+n", "new session"),
+	),
+}
+
 func (p *chatPage) Init() tea.Cmd {
-	return p.layout.Init()
+	// TODO: remove
+	cmds := []tea.Cmd{
+		p.layout.Init(),
+	}
+
+	sessions, _ := p.app.Sessions.List()
+	if len(sessions) > 0 {
+		p.session = sessions[0]
+		cmd := p.setSidebar()
+		cmds = append(cmds, util.CmdHandler(chat.SessionSelectedMsg(p.session)), cmd)
+	}
+	return tea.Batch(
+		cmds...,
+	)
 }
 
 func (p *chatPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -30,6 +55,13 @@ func (p *chatPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd := p.sendMessage(msg.Text)
 		if cmd != nil {
 			return p, cmd
+		}
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, keyMap.NewSession):
+			p.session = session.Session{}
+			p.clearSidebar()
+			return p, util.CmdHandler(chat.SessionClearedMsg{})
 		}
 	}
 	u, cmd := p.layout.Update(msg)
@@ -51,6 +83,12 @@ func (p *chatPage) setSidebar() tea.Cmd {
 	return sidebarContainer.Init()
 }
 
+func (p *chatPage) clearSidebar() {
+	p.layout.SetRightPanel(nil)
+	width, height := p.layout.GetSize()
+	p.layout.SetSize(width, height)
+}
+
 func (p *chatPage) sendMessage(text string) tea.Cmd {
 	var cmds []tea.Cmd
 	if p.session.ID == "" {
@@ -66,15 +104,15 @@ func (p *chatPage) sendMessage(text string) tea.Cmd {
 		}
 		cmds = append(cmds, util.CmdHandler(chat.SessionSelectedMsg(session)))
 	}
-	// TODO: actually call agent
-	p.app.Messages.Create(p.session.ID, message.CreateMessageParams{
-		Role: message.User,
-		Parts: []message.ContentPart{
-			message.TextContent{
-				Text: text,
-			},
-		},
-	})
+	// TODO: move this to a service
+	a, err := agent.NewCoderAgent(p.app)
+	if err != nil {
+		return util.ReportError(err)
+	}
+	go func() {
+		a.Generate(p.app.Context, p.session.ID, text)
+	}()
+
 	return tea.Batch(cmds...)
 }
 
@@ -85,7 +123,7 @@ func (p *chatPage) View() string {
 func NewChatPage(app *app.App) tea.Model {
 	messagesContainer := layout.NewContainer(
 		chat.NewMessagesCmp(app),
-		layout.WithPadding(1, 1, 1, 1),
+		layout.WithPadding(1, 1, 0, 1),
 	)
 
 	editorContainer := layout.NewContainer(

@@ -34,6 +34,11 @@ var (
 		Light: "#d3d3d3",
 	}
 
+	ForgroundMid = lipgloss.AdaptiveColor{
+		Dark:  "#a0a0a0",
+		Light: "#a0a0a0",
+	}
+
 	ForgroundDim = lipgloss.AdaptiveColor{
 		Dark:  "#737373",
 		Light: "#737373",
@@ -157,6 +162,11 @@ var (
 	Peach = lipgloss.AdaptiveColor{
 		Dark:  dark.Peach().Hex,
 		Light: light.Peach().Hex,
+	}
+
+	Yellow = lipgloss.AdaptiveColor{
+		Dark:  dark.Yellow().Hex,
+		Light: light.Yellow().Hex,
 	}
 
 	Primary   = Blue

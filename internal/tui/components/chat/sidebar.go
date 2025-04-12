@@ -5,6 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/kujtimiihoxha/termai/internal/pubsub"
 	"github.com/kujtimiihoxha/termai/internal/session"
 	"github.com/kujtimiihoxha/termai/internal/tui/styles"
 )
@@ -19,6 +20,14 @@ func (m *sidebarCmp) Init() tea.Cmd {
 }
 
 func (m *sidebarCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case pubsub.Event[session.Session]:
+		if msg.Type == pubsub.UpdatedEvent {
+			if m.session.ID == msg.Payload.ID {
+				m.session = msg.Payload
+			}
+		}
+	}
 	return m, nil
 }
 
@@ -45,7 +54,7 @@ func (m *sidebarCmp) sessionSection() string {
 	sessionValue := styles.BaseStyle.
 		Foreground(styles.Forground).
 		Width(m.width - lipgloss.Width(sessionKey)).
-		Render(": New Session")
+		Render(fmt.Sprintf(": %s", m.session.Title))
 	return lipgloss.JoinHorizontal(
 		lipgloss.Left,
 		sessionKey,

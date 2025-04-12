@@ -77,21 +77,20 @@ func (m *editorCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case AgentWorkingMsg:
 		m.agentWorking = bool(msg)
 	case tea.KeyMsg:
-		if key.Matches(msg, focusedKeyMaps.Send) {
+		// if the key does not match any binding, return
+		if m.textarea.Focused() && key.Matches(msg, focusedKeyMaps.Send) {
 			return m, m.send()
 		}
-		if key.Matches(msg, bluredKeyMaps.Send) {
+		if !m.textarea.Focused() && key.Matches(msg, bluredKeyMaps.Send) {
 			return m, m.send()
 		}
-		if key.Matches(msg, focusedKeyMaps.Blur) {
+		if m.textarea.Focused() && key.Matches(msg, focusedKeyMaps.Blur) {
 			m.textarea.Blur()
 			return m, util.CmdHandler(EditorFocusMsg(false))
 		}
-		if key.Matches(msg, bluredKeyMaps.Focus) {
-			if !m.textarea.Focused() {
-				m.textarea.Focus()
-				return m, tea.Batch(textarea.Blink, util.CmdHandler(EditorFocusMsg(true)))
-			}
+		if !m.textarea.Focused() && key.Matches(msg, bluredKeyMaps.Focus) {
+			m.textarea.Focus()
+			return m, tea.Batch(textarea.Blink, util.CmdHandler(EditorFocusMsg(true)))
 		}
 	}
 	m.textarea, cmd = m.textarea.Update(msg)

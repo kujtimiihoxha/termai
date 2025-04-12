@@ -3,6 +3,8 @@ package message
 import (
 	"encoding/base64"
 	"time"
+
+	"github.com/kujtimiihoxha/termai/internal/llm/models"
 )
 
 type MessageRole string
@@ -65,7 +67,6 @@ type ToolCall struct {
 	Name     string `json:"name"`
 	Input    string `json:"input"`
 	Type     string `json:"type"`
-	Metadata any    `json:"metadata"`
 	Finished bool   `json:"finished"`
 }
 
@@ -75,6 +76,7 @@ type ToolResult struct {
 	ToolCallID string `json:"tool_call_id"`
 	Name       string `json:"name"`
 	Content    string `json:"content"`
+	Metadata   string `json:"metadata"`
 	IsError    bool   `json:"is_error"`
 }
 
@@ -92,6 +94,7 @@ type Message struct {
 	Role      MessageRole
 	SessionID string
 	Parts     []ContentPart
+	Model     models.ModelID
 
 	CreatedAt int64
 	UpdatedAt int64
