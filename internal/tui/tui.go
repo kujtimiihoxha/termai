@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"context"
+
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -184,7 +186,7 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			case key.Matches(msg, replKeyMap):
 				if a.currentPage == page.ReplPage {
-					sessions, err := a.app.Sessions.List()
+					sessions, err := a.app.Sessions.List(context.Background())
 					if err != nil {
 						return a, util.CmdHandler(util.ReportError(err))
 					}
@@ -192,7 +194,7 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if lastSession.MessageCount == 0 {
 						return a, util.CmdHandler(repl.SelectedSessionMsg{SessionID: lastSession.ID})
 					}
-					s, err := a.app.Sessions.Create("New Session")
+					s, err := a.app.Sessions.Create(context.Background(), "New Session")
 					if err != nil {
 						return a, util.CmdHandler(util.ReportError(err))
 					}

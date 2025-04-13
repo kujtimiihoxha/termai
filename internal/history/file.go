@@ -27,45 +27,43 @@ type File struct {
 
 type Service interface {
 	pubsub.Suscriber[File]
-	Create(sessionID, path, content string) (File, error)
-	CreateVersion(sessionID, path, content string) (File, error)
-	Get(id string) (File, error)
-	GetByPathAndSession(path, sessionID string) (File, error)
-	ListBySession(sessionID string) ([]File, error)
-	ListLatestSessionFiles(sessionID string) ([]File, error)
-	Update(file File) (File, error)
-	Delete(id string) error
-	DeleteSessionFiles(sessionID string) error
+	Create(ctx context.Context, sessionID, path, content string) (File, error)
+	CreateVersion(ctx context.Context, sessionID, path, content string) (File, error)
+	Get(ctx context.Context, id string) (File, error)
+	GetByPathAndSession(ctx context.Context, path, sessionID string) (File, error)
+	ListBySession(ctx context.Context, sessionID string) ([]File, error)
+	ListLatestSessionFiles(ctx context.Context, sessionID string) ([]File, error)
+	Update(ctx context.Context, file File) (File, error)
+	Delete(ctx context.Context, id string) error
+	DeleteSessionFiles(ctx context.Context, sessionID string) error
 }
 
 type service struct {
 	*pubsub.Broker[File]
-	q   db.Querier
-	ctx context.Context
+	q db.Querier
 }
 
-func NewService(ctx context.Context, q db.Querier) Service {
+func NewService(q db.Querier) Service {
 	return &service{
 		Broker: pubsub.NewBroker[File](),
 		q:      q,
-		ctx:    ctx,
 	}
 }
 
-func (s *service) Create(sessionID, path, content string) (File, error) {
-	return s.createWithVersion(sessionID, path, content, InitialVersion)
+func (s *service) Create(ctx context.Context, sessionID, path, content string) (File, error) {
+	return s.createWithVersion(ctx, sessionID, path, content, InitialVersion)
 }
 
-func (s *service) CreateVersion(sessionID, path, content string) (File, error) {
+func (s *service) CreateVersion(ctx context.Context, sessionID, path, content string) (File, error) {
 	// Get the latest version for this path
-	files, err := s.q.ListFilesByPath(s.ctx, path)
+	files, err := s.q.ListFilesByPath(ctx, path)
 	if err != nil {
 		return File{}, err
 	}
 
 	if len(files) == 0 {
 		// No previous versions, create initial
-		return s.Create(sessionID, path, content)
+		return s.Create(ctx, sessionID, path, content)
 	}
 
 	// Get the latest version
@@ -89,11 +87,11 @@ func (s *service) CreateVersion(sessionID, path, content string) (File, error) {
 		nextVersion = fmt.Sprintf("v%d", latestFile.CreatedAt)
 	}
 
-	return s.createWithVersion(sessionID, path, content, nextVersion)
+	return s.createWithVersion(ctx, sessionID, path, content, nextVersion)
 }
 
-func (s *service) createWithVersion(sessionID, path, content, version string) (File, error) {
-	dbFile, err := s.q.CreateFile(s.ctx, db.CreateFileParams{
+func (s *service) createWithVersion(ctx context.Context, sessionID, path, content, version string) (File, error) {
+	dbFile, err := s.q.CreateFile(ctx, db.CreateFileParams{
 		ID:        uuid.New().String(),
 		SessionID: sessionID,
 		Path:      path,
@@ -108,16 +106,16 @@ func (s *service) createWithVersion(sessionID, path, content, version string) (F
 	return file, nil
 }
 
-func (s *service) Get(id string) (File, error) {
-	dbFile, err := s.q.GetFile(s.ctx, id)
+func (s *service) Get(ctx context.Context, id string) (File, error) {
+	dbFile, err := s.q.GetFile(ctx, id)
 	if err != nil {
 		return File{}, err
 	}
 	return s.fromDBItem(dbFile), nil
 }
 
-func (s *service) GetByPathAndSession(path, sessionID string) (File, error) {
-	dbFile, err := s.q.GetFileByPathAndSession(s.ctx, db.GetFileByPathAndSessionParams{
+func (s *service) GetByPathAndSession(ctx context.Context, path, sessionID string) (File, error) {
+	dbFile, err := s.q.GetFileByPathAndSession(ctx, db.GetFileByPathAndSessionParams{
 		Path:      path,
 		SessionID: sessionID,
 	})
@@ -127,8 +125,8 @@ func (s *service) GetByPathAndSession(path, sessionID string) (File, error) {
 	return s.fromDBItem(dbFile), nil
 }
 
-func (s *service) ListBySession(sessionID string) ([]File, error) {
-	dbFiles, err := s.q.ListFilesBySession(s.ctx, sessionID)
+func (s *service) ListBySession(ctx context.Context, sessionID string) ([]File, error) {
+	dbFiles, err := s.q.ListFilesBySession(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -139,8 +137,8 @@ func (s *service) ListBySession(sessionID string) ([]File, error) {
 	return files, nil
 }
 
-func (s *service) ListLatestSessionFiles(sessionID string) ([]File, error) {
-	dbFiles, err := s.q.ListLatestSessionFiles(s.ctx, sessionID)
+func (s *service) ListLatestSessionFiles(ctx context.Context, sessionID string) ([]File, error) {
+	dbFiles, err := s.q.ListLatestSessionFiles(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -151,8 +149,8 @@ func (s *service) ListLatestSessionFiles(sessionID string) ([]File, error) {
 	return files, nil
 }
 
-func (s *service) Update(file File) (File, error) {
-	dbFile, err := s.q.UpdateFile(s.ctx, db.UpdateFileParams{
+func (s *service) Update(ctx context.Context, file File) (File, error) {
+	dbFile, err := s.q.UpdateFile(ctx, db.UpdateFileParams{
 		ID:      file.ID,
 		Content: file.Content,
 		Version: file.Version,
@@ -165,12 +163,12 @@ func (s *service) Update(file File) (File, error) {
 	return updatedFile, nil
 }
 
-func (s *service) Delete(id string) error {
-	file, err := s.Get(id)
+func (s *service) Delete(ctx context.Context, id string) error {
+	file, err := s.Get(ctx, id)
 	if err != nil {
 		return err
 	}
-	err = s.q.DeleteFile(s.ctx, id)
+	err = s.q.DeleteFile(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -178,13 +176,13 @@ func (s *service) Delete(id string) error {
 	return nil
 }
 
-func (s *service) DeleteSessionFiles(sessionID string) error {
-	files, err := s.ListBySession(sessionID)
+func (s *service) DeleteSessionFiles(ctx context.Context, sessionID string) error {
+	files, err := s.ListBySession(ctx, sessionID)
 	if err != nil {
 		return err
 	}
 	for _, file := range files {
-		err = s.Delete(file.ID)
+		err = s.Delete(ctx, file.ID)
 		if err != nil {
 			return err
 		}
@@ -203,4 +201,3 @@ func (s *service) fromDBItem(item db.File) File {
 		UpdatedAt: item.UpdatedAt,
 	}
 }
-

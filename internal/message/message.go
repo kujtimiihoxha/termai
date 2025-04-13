@@ -20,34 +20,32 @@ type CreateMessageParams struct {
 
 type Service interface {
 	pubsub.Suscriber[Message]
-	Create(sessionID string, params CreateMessageParams) (Message, error)
-	Update(message Message) error
-	Get(id string) (Message, error)
-	List(sessionID string) ([]Message, error)
-	Delete(id string) error
-	DeleteSessionMessages(sessionID string) error
+	Create(ctx context.Context, sessionID string, params CreateMessageParams) (Message, error)
+	Update(ctx context.Context, message Message) error
+	Get(ctx context.Context, id string) (Message, error)
+	List(ctx context.Context, sessionID string) ([]Message, error)
+	Delete(ctx context.Context, id string) error
+	DeleteSessionMessages(ctx context.Context, sessionID string) error
 }
 
 type service struct {
 	*pubsub.Broker[Message]
-	q   db.Querier
-	ctx context.Context
+	q db.Querier
 }
 
-func NewService(ctx context.Context, q db.Querier) Service {
+func NewService(q db.Querier) Service {
 	return &service{
 		Broker: pubsub.NewBroker[Message](),
 		q:      q,
-		ctx:    ctx,
 	}
 }
 
-func (s *service) Delete(id string) error {
-	message, err := s.Get(id)
+func (s *service) Delete(ctx context.Context, id string) error {
+	message, err := s.Get(ctx, id)
 	if err != nil {
 		return err
 	}
-	err = s.q.DeleteMessage(s.ctx, message.ID)
+	err = s.q.DeleteMessage(ctx, message.ID)
 	if err != nil {
 		return err
 	}
@@ -55,7 +53,7 @@ func (s *service) Delete(id string) error {
 	return nil
 }
 
-func (s *service) Create(sessionID string, params CreateMessageParams) (Message, error) {
+func (s *service) Create(ctx context.Context, sessionID string, params CreateMessageParams) (Message, error) {
 	if params.Role != Assistant {
 		params.Parts = append(params.Parts, Finish{
 			Reason: "stop",
@@ -66,7 +64,7 @@ func (s *service) Create(sessionID string, params CreateMessageParams) (Message,
 		return Message{}, err
 	}
 
-	dbMessage, err := s.q.CreateMessage(s.ctx, db.CreateMessageParams{
+	dbMessage, err := s.q.CreateMessage(ctx, db.CreateMessageParams{
 		ID:        uuid.New().String(),
 		SessionID: sessionID,
 		Role:      string(params.Role),
@@ -84,14 +82,14 @@ func (s *service) Create(sessionID string, params CreateMessageParams) (Message,
 	return message, nil
 }
 
-func (s *service) DeleteSessionMessages(sessionID string) error {
-	messages, err := s.List(sessionID)
+func (s *service) DeleteSessionMessages(ctx context.Context, sessionID string) error {
+	messages, err := s.List(ctx, sessionID)
 	if err != nil {
 		return err
 	}
 	for _, message := range messages {
 		if message.SessionID == sessionID {
-			err = s.Delete(message.ID)
+			err = s.Delete(ctx, message.ID)
 			if err != nil {
 				return err
 			}
@@ -100,7 +98,7 @@ func (s *service) DeleteSessionMessages(sessionID string) error {
 	return nil
 }
 
-func (s *service) Update(message Message) error {
+func (s *service) Update(ctx context.Context, message Message) error {
 	parts, err := marshallParts(message.Parts)
 	if err != nil {
 		return err
@@ -110,7 +108,7 @@ func (s *service) Update(message Message) error {
 		finishedAt.Int64 = f.Time
 		finishedAt.Valid = true
 	}
-	err = s.q.UpdateMessage(s.ctx, db.UpdateMessageParams{
+	err = s.q.UpdateMessage(ctx, db.UpdateMessageParams{
 		ID:         message.ID,
 		Parts:      string(parts),
 		FinishedAt: finishedAt,
@@ -122,16 +120,16 @@ func (s *service) Update(message Message) error {
 	return nil
 }
 
-func (s *service) Get(id string) (Message, error) {
-	dbMessage, err := s.q.GetMessage(s.ctx, id)
+func (s *service) Get(ctx context.Context, id string) (Message, error) {
+	dbMessage, err := s.q.GetMessage(ctx, id)
 	if err != nil {
 		return Message{}, err
 	}
 	return s.fromDBItem(dbMessage)
 }
 
-func (s *service) List(sessionID string) ([]Message, error) {
-	dbMessages, err := s.q.ListMessagesBySession(s.ctx, sessionID)
+func (s *service) List(ctx context.Context, sessionID string) ([]Message, error) {
+	dbMessages, err := s.q.ListMessagesBySession(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}

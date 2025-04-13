@@ -24,7 +24,8 @@ func NewTaskAgent(app *app.App) (Agent, error) {
 		return nil, errors.New("model not supported")
 	}
 
-	agentProvider, titleGenerator, err := getAgentProviders(app.Context, model)
+	ctx := context.Background()
+	agentProvider, titleGenerator, err := getAgentProviders(ctx, model)
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,8 @@
 package page
 
 import (
+	"context"
+
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/kujtimiihoxha/termai/internal/app"
@@ -36,7 +38,7 @@ func (p *chatPage) Init() tea.Cmd {
 		p.layout.Init(),
 	}
 
-	sessions, _ := p.app.Sessions.List()
+	sessions, _ := p.app.Sessions.List(context.Background())
 	if len(sessions) > 0 {
 		p.session = sessions[0]
 		cmd := p.setSidebar()
@@ -92,7 +94,7 @@ func (p *chatPage) clearSidebar() {
 func (p *chatPage) sendMessage(text string) tea.Cmd {
 	var cmds []tea.Cmd
 	if p.session.ID == "" {
-		session, err := p.app.Sessions.Create("New Session")
+		session, err := p.app.Sessions.Create(context.Background(), "New Session")
 		if err != nil {
 			return util.ReportError(err)
 		}
@@ -110,7 +112,7 @@ func (p *chatPage) sendMessage(text string) tea.Cmd {
 		return util.ReportError(err)
 	}
 	go func() {
-		a.Generate(p.app.Context, p.session.ID, text)
+		a.Generate(context.Background(), p.session.ID, text)
 	}()
 
 	return tea.Batch(cmds...)

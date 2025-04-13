@@ -1,6 +1,7 @@
 package repl
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -77,8 +78,8 @@ func (m *messagesCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.session = msg.Payload
 		}
 	case SelectedSessionMsg:
-		m.session, _ = m.app.Sessions.Get(msg.SessionID)
-		m.messages, _ = m.app.Messages.List(m.session.ID)
+		m.session, _ = m.app.Sessions.Get(context.Background(), msg.SessionID)
+		m.messages, _ = m.app.Messages.List(context.Background(), m.session.ID)
 		m.renderView()
 		m.viewport.GotoBottom()
 	}
@@ -259,7 +260,7 @@ func (m *messagesCmp) renderMessageWithToolCall(content string, tools []message.
 
 			runningIndicator := runningStyle.Render(fmt.Sprintf("%s Running...", styles.SpinnerIcon))
 			allParts = append(allParts, leftPadding.Render(runningIndicator))
-			taskSessionMessages, _ := m.app.Messages.List(toolCall.ID)
+			taskSessionMessages, _ := m.app.Messages.List(context.Background(), toolCall.ID)
 			for _, msg := range taskSessionMessages {
 				if msg.Role == message.Assistant {
 					for _, toolCall := range msg.ToolCalls() {

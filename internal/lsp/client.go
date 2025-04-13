@@ -48,8 +48,8 @@ type Client struct {
 	openFilesMu sync.RWMutex
 }
 
-func NewClient(command string, args ...string) (*Client, error) {
-	cmd := exec.Command(command, args...)
+func NewClient(ctx context.Context, command string, args ...string) (*Client, error) {
+	cmd := exec.CommandContext(ctx, command, args...)
 	// Copy env
 	cmd.Env = os.Environ()
 

@@ -40,12 +40,13 @@ func NewCoderAgent(app *app.App) (Agent, error) {
 		return nil, errors.New("model not supported")
 	}
 
-	agentProvider, titleGenerator, err := getAgentProviders(app.Context, model)
+	ctx := context.Background()
+	agentProvider, titleGenerator, err := getAgentProviders(ctx, model)
 	if err != nil {
 		return nil, err
 	}
 
-	otherTools := GetMcpTools(app.Context, app.Permissions)
+	otherTools := GetMcpTools(ctx, app.Permissions)
 	if len(app.LSPClients) > 0 {
 		otherTools = append(otherTools, tools.NewDiagnosticsTool(app.LSPClients))
 	}

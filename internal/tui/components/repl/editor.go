@@ -160,7 +160,7 @@ func (m *editorCmp) Send() tea.Cmd {
 		return util.ReportWarn("Assistant is still working on the previous message")
 	}
 
-	messages, err := m.app.Messages.List(m.sessionID)
+	messages, err := m.app.Messages.List(context.Background(), m.sessionID)
 	if err != nil {
 		return util.ReportError(err)
 	}
@@ -177,7 +177,7 @@ func (m *editorCmp) Send() tea.Cmd {
 	if len(content) == 0 {
 		return util.ReportWarn("Message is empty")
 	}
-	ctx, cancel := context.WithCancel(m.app.Context)
+	ctx, cancel := context.WithCancel(context.Background())
 	m.cancelMessage = cancel
 	go func() {
 		defer cancel()

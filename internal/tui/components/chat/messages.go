@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -324,7 +325,7 @@ func (m *messagesCmp) renderToolCall(toolCall message.ToolCall, isNested bool) s
 
 	innerToolCalls := make([]string, 0)
 	if toolCall.Name == agent.AgentToolName {
-		messages, _ := m.app.Messages.List(toolCall.ID)
+		messages, _ := m.app.Messages.List(context.Background(), toolCall.ID)
 		toolCalls := make([]message.ToolCall, 0)
 		for _, v := range messages {
 			toolCalls = append(toolCalls, v.ToolCalls()...)
@@ -554,7 +555,7 @@ func (m *messagesCmp) GetSize() (int, int) {
 
 func (m *messagesCmp) SetSession(session session.Session) tea.Cmd {
 	m.session = session
-	messages, err := m.app.Messages.List(session.ID)
+	messages, err := m.app.Messages.List(context.Background(), session.ID)
 	if err != nil {
 		return util.ReportError(err)
 	}

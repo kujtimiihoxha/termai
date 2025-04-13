@@ -51,7 +51,7 @@ func (b *agentTool) Run(ctx context.Context, call tools.ToolCall) (tools.ToolRes
 		return tools.NewTextErrorResponse(fmt.Sprintf("error creating agent: %s", err)), nil
 	}
 
-	session, err := b.app.Sessions.CreateTaskSession(call.ID, b.parentSessionID, "New Agent Session")
+	session, err := b.app.Sessions.CreateTaskSession(ctx, call.ID, b.parentSessionID, "New Agent Session")
 	if err != nil {
 		return tools.NewTextErrorResponse(fmt.Sprintf("error creating session: %s", err)), nil
 	}
@@ -61,7 +61,7 @@ func (b *agentTool) Run(ctx context.Context, call tools.ToolCall) (tools.ToolRes
 		return tools.NewTextErrorResponse(fmt.Sprintf("error generating agent: %s", err)), nil
 	}
 
-	messages, err := b.app.Messages.List(session.ID)
+	messages, err := b.app.Messages.List(ctx, session.ID)
 	if err != nil {
 		return tools.NewTextErrorResponse(fmt.Sprintf("error listing messages: %s", err)), nil
 	}
@@ -74,11 +74,11 @@ func (b *agentTool) Run(ctx context.Context, call tools.ToolCall) (tools.ToolRes
 		return tools.NewTextErrorResponse("no assistant message found"), nil
 	}
 
-	updatedSession, err := b.app.Sessions.Get(session.ID)
+	updatedSession, err := b.app.Sessions.Get(ctx, session.ID)
 	if err != nil {
 		return tools.NewTextErrorResponse(fmt.Sprintf("error: %s", err)), nil
 	}
-	parentSession, err := b.app.Sessions.Get(b.parentSessionID)
+	parentSession, err := b.app.Sessions.Get(ctx, b.parentSessionID)
 	if err != nil {
 		return tools.NewTextErrorResponse(fmt.Sprintf("error: %s", err)), nil
 	}
@@ -87,7 +87,7 @@ func (b *agentTool) Run(ctx context.Context, call tools.ToolCall) (tools.ToolRes
 	parentSession.PromptTokens += updatedSession.PromptTokens
 	parentSession.CompletionTokens += updatedSession.CompletionTokens
 
-	_, err = b.app.Sessions.Save(parentSession)
+	_, err = b.app.Sessions.Save(ctx, parentSession)
 	if err != nil {
 		return tools.NewTextErrorResponse(fmt.Sprintf("error: %s", err)), nil
 	}

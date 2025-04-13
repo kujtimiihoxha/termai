@@ -1,6 +1,7 @@
 package repl
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -57,12 +58,13 @@ var sessionKeyMapValue = sessionsKeyMap{
 }
 
 func (i *sessionsCmp) Init() tea.Cmd {
-	existing, err := i.app.Sessions.List()
+	existing, err := i.app.Sessions.List(context.Background())
 	if err != nil {
 		return util.ReportError(err)
 	}
 	if len(existing) == 0 || existing[0].MessageCount > 0 {
 		newSession, err := i.app.Sessions.Create(
+			context.Background(),
 			"New Session",
 		)
 		if err != nil {

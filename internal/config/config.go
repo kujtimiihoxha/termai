@@ -83,9 +83,9 @@ var cfg *Config
 // Load initializes the configuration from environment variables and config files.
 // If debug is true, debug mode is enabled and log level is set to debug.
 // It returns an error if configuration loading fails.
-func Load(workingDir string, debug bool) error {
+func Load(workingDir string, debug bool) (*Config, error) {
 	if cfg != nil {
-		return nil
+		return cfg, nil
 	}
 
 	cfg = &Config{
@@ -101,7 +101,7 @@ func Load(workingDir string, debug bool) error {
 
 	// Read global config
 	if err := readConfig(viper.ReadInConfig()); err != nil {
-		return err
+		return cfg, err
 	}
 
 	// Load and merge local config
@@ -109,7 +109,7 @@ func Load(workingDir string, debug bool) error {
 
 	// Apply configuration to the struct
 	if err := viper.Unmarshal(cfg); err != nil {
-		return err
+		return cfg, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
 	applyDefaultValues()
@@ -123,7 +123,7 @@ func Load(workingDir string, debug bool) error {
 		Level: defaultLevel,
 	}))
 	slog.SetDefault(logger)
-	return nil
+	return cfg, nil
 }
 
 // configureViper sets up viper's configuration paths and environment variables.
@@ -237,7 +237,7 @@ func readConfig(err error) error {
 		return nil
 	}
 
-	return err
+	return fmt.Errorf("failed to read config: %w", err)
 }
 
 // mergeLocalConfig loads and merges configuration from the local directory.
@@ -261,14 +261,6 @@ func applyDefaultValues() {
 			v.Type = MCPStdio
 			cfg.MCPServers[k] = v
 		}
-	}
-}
-
-// setWorkingDirectory stores the current working directory in the configuration.
-func setWorkingDirectory() {
-	workdir, err := os.Getwd()
-	if err == nil {
-		viper.Set("wd", workdir)
 	}
 }
 

@@ -48,7 +48,7 @@ func (c *agent) handleTitleGeneration(ctx context.Context, sessionID, content st
 		return
 	}
 
-	session, err := c.Sessions.Get(sessionID)
+	session, err := c.Sessions.Get(ctx, sessionID)
 	if err != nil {
 		return
 	}
@@ -56,12 +56,12 @@ func (c *agent) handleTitleGeneration(ctx context.Context, sessionID, content st
 		session.Title = response.Content
 		session.Title = strings.TrimSpace(session.Title)
 		session.Title = strings.ReplaceAll(session.Title, "\n", " ")
-		c.Sessions.Save(session)
+		c.Sessions.Save(ctx, session)
 	}
 }
 
-func (c *agent) TrackUsage(sessionID string, model models.Model, usage provider.TokenUsage) error {
-	session, err := c.Sessions.Get(sessionID)
+func (c *agent) TrackUsage(ctx context.Context, sessionID string, model models.Model, usage provider.TokenUsage) error {
+	session, err := c.Sessions.Get(ctx, sessionID)
 	if err != nil {
 		return err
 	}
@@ -75,11 +75,12 @@ func (c *agent) TrackUsage(sessionID string, model models.Model, usage provider.
 	session.CompletionTokens += usage.OutputTokens
 	session.PromptTokens += usage.InputTokens
 
-	_, err = c.Sessions.Save(session)
+	_, err = c.Sessions.Save(ctx, session)
 	return err
 }
 
 func (c *agent) processEvent(
+	ctx context.Context,
 	sessionID string,
 	assistantMsg *message.Message,
 	event provider.ProviderEvent,
@@ -87,10 +88,10 @@ func (c *agent) processEvent(
 	switch event.Type {
 	case provider.EventThinkingDelta:
 		assistantMsg.AppendReasoningContent(event.Content)
-		return c.Messages.Update(*assistantMsg)
+		return c.Messages.Update(ctx, *assistantMsg)
 	case provider.EventContentDelta:
 		assistantMsg.AppendContent(event.Content)
-		return c.Messages.Update(*assistantMsg)
+		return c.Messages.Update(ctx, *assistantMsg)
 	case provider.EventError:
 		if errors.Is(event.Error, context.Canceled) {
 			return nil
@@ -105,11 +106,11 @@ func (c *agent) processEvent(
 	case provider.EventComplete:
 		assistantMsg.SetToolCalls(event.Response.ToolCalls)
 		assistantMsg.AddFinish(event.Response.FinishReason)
-		err := c.Messages.Update(*assistantMsg)
+		err := c.Messages.Update(ctx, *assistantMsg)
 		if err != nil {
 			return err
 		}
-		return c.TrackUsage(sessionID, c.model, event.Response.Usage)
+		return c.TrackUsage(ctx, sessionID, c.model, event.Response.Usage)
 	}
 
 	return nil
@@ -237,7 +238,7 @@ func (c *agent) handleToolExecution(
 	for _, toolResult := range toolResults {
 		parts = append(parts, toolResult)
 	}
-	msg, err := c.Messages.Create(assistantMsg.SessionID, message.CreateMessageParams{
+	msg, err := c.Messages.Create(ctx, assistantMsg.SessionID, message.CreateMessageParams{
 		Role:  message.Tool,
 		Parts: parts,
 	})
@@ -247,7 +248,7 @@ func (c *agent) handleToolExecution(
 
 func (c *agent) generate(ctx context.Context, sessionID string, content string) error {
 	ctx = context.WithValue(ctx, tools.SessionIDContextKey, sessionID)
-	messages, err := c.Messages.List(sessionID)
+	messages, err := c.Messages.List(ctx, sessionID)
 	if err != nil {
 		return err
 	}
@@ -256,7 +257,7 @@ func (c *agent) generate(ctx context.Context, sessionID string, content string) 
 		go c.handleTitleGeneration(ctx, sessionID, content)
 	}
 
-	userMsg, err := c.Messages.Create(sessionID, message.CreateMessageParams{
+	userMsg, err := c.Messages.Create(ctx, sessionID, message.CreateMessageParams{
 		Role: message.User,
 		Parts: []message.ContentPart{
 			message.TextContent{
@@ -272,7 +273,7 @@ func (c *agent) generate(ctx context.Context, sessionID string, content string) 
 	for {
 		select {
 		case <-ctx.Done():
-			assistantMsg, err := c.Messages.Create(sessionID, message.CreateMessageParams{
+			assistantMsg, err := c.Messages.Create(ctx, sessionID, message.CreateMessageParams{
 				Role:  message.Assistant,
 				Parts: []message.ContentPart{},
 			})
@@ -280,7 +281,7 @@ func (c *agent) generate(ctx context.Context, sessionID string, content string) 
 				return err
 			}
 			assistantMsg.AddFinish("canceled")
-			c.Messages.Update(assistantMsg)
+			c.Messages.Update(ctx, assistantMsg)
 			return context.Canceled
 		default:
 			// Continue processing
@@ -289,7 +290,7 @@ func (c *agent) generate(ctx context.Context, sessionID string, content string) 
 		eventChan, err := c.agent.StreamResponse(ctx, messages, c.tools)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
-				assistantMsg, err := c.Messages.Create(sessionID, message.CreateMessageParams{
+				assistantMsg, err := c.Messages.Create(ctx, sessionID, message.CreateMessageParams{
 					Role:  message.Assistant,
 					Parts: []message.ContentPart{},
 				})
@@ -297,13 +298,13 @@ func (c *agent) generate(ctx context.Context, sessionID string, content string) 
 					return err
 				}
 				assistantMsg.AddFinish("canceled")
-				c.Messages.Update(assistantMsg)
+				c.Messages.Update(ctx, assistantMsg)
 				return context.Canceled
 			}
 			return err
 		}
 
-		assistantMsg, err := c.Messages.Create(sessionID, message.CreateMessageParams{
+		assistantMsg, err := c.Messages.Create(ctx, sessionID, message.CreateMessageParams{
 			Role:  message.Assistant,
 			Parts: []message.ContentPart{},
 			Model: c.model.ID,
@@ -314,22 +315,22 @@ func (c *agent) generate(ctx context.Context, sessionID string, content string) 
 
 		ctx = context.WithValue(ctx, tools.MessageIDContextKey, assistantMsg.ID)
 		for event := range eventChan {
-			err = c.processEvent(sessionID, &assistantMsg, event)
+			err = c.processEvent(ctx, sessionID, &assistantMsg, event)
 			if err != nil {
 				if errors.Is(err, context.Canceled) {
 					assistantMsg.AddFinish("canceled")
-					c.Messages.Update(assistantMsg)
+					c.Messages.Update(ctx, assistantMsg)
 					return context.Canceled
 				}
 				assistantMsg.AddFinish("error:" + err.Error())
-				c.Messages.Update(assistantMsg)
+				c.Messages.Update(ctx, assistantMsg)
 				return err
 			}
 
 			select {
 			case <-ctx.Done():
 				assistantMsg.AddFinish("canceled")
-				c.Messages.Update(assistantMsg)
+				c.Messages.Update(ctx, assistantMsg)
 				return context.Canceled
 			default:
 			}
@@ -339,7 +340,7 @@ func (c *agent) generate(ctx context.Context, sessionID string, content string) 
 		select {
 		case <-ctx.Done():
 			assistantMsg.AddFinish("canceled")
-			c.Messages.Update(assistantMsg)
+			c.Messages.Update(ctx, assistantMsg)
 			return context.Canceled
 		default:
 			// Continue processing
@@ -349,13 +350,13 @@ func (c *agent) generate(ctx context.Context, sessionID string, content string) 
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				assistantMsg.AddFinish("canceled")
-				c.Messages.Update(assistantMsg)
+				c.Messages.Update(ctx, assistantMsg)
 				return context.Canceled
 			}
 			return err
 		}
 
-		c.Messages.Update(assistantMsg)
+		c.Messages.Update(ctx, assistantMsg)
 
 		if len(assistantMsg.ToolCalls()) == 0 {
 			break
@@ -370,7 +371,7 @@ func (c *agent) generate(ctx context.Context, sessionID string, content string) 
 		select {
 		case <-ctx.Done():
 			assistantMsg.AddFinish("canceled")
-			c.Messages.Update(assistantMsg)
+			c.Messages.Update(ctx, assistantMsg)
 			return context.Canceled
 		default:
 			// Continue processing
@@ -383,7 +384,7 @@ func getAgentProviders(ctx context.Context, model models.Model) (provider.Provid
 	maxTokens := config.Get().Model.CoderMaxTokens
 
 	providerConfig, ok := config.Get().Providers[model.Provider]
-	if !ok || !providerConfig.Enabled {
+	if !ok || providerConfig.Disabled {
 		return nil, nil, errors.New("provider is not enabled")
 	}
 	var agentProvider provider.Provider

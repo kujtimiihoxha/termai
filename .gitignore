@@ -41,6 +41,6 @@ debug.log
 .env
 .env.local
 
-.termai
+.opencode
 
 internal/assets/diff/index.mjs
