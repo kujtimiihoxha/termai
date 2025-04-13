@@ -6,7 +6,6 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/kujtimiihoxha/termai/internal/app"
-	"github.com/kujtimiihoxha/termai/internal/llm/agent"
 	"github.com/kujtimiihoxha/termai/internal/session"
 	"github.com/kujtimiihoxha/termai/internal/tui/components/chat"
 	"github.com/kujtimiihoxha/termai/internal/tui/layout"
@@ -23,12 +22,17 @@ type chatPage struct {
 
 type ChatKeyMap struct {
 	NewSession key.Binding
+	Cancel     key.Binding
 }
 
 var keyMap = ChatKeyMap{
 	NewSession: key.NewBinding(
 		key.WithKeys("ctrl+n"),
 		key.WithHelp("ctrl+n", "new session"),
+	),
+	Cancel: key.NewBinding(
+		key.WithKeys("ctrl+x"),
+		key.WithHelp("ctrl+x", "cancel"),
 	),
 }
 
@@ -106,15 +110,8 @@ func (p *chatPage) sendMessage(text string) tea.Cmd {
 		}
 		cmds = append(cmds, util.CmdHandler(chat.SessionSelectedMsg(session)))
 	}
-	// TODO: move this to a service
-	a, err := agent.NewCoderAgent(p.app)
-	if err != nil {
-		return util.ReportError(err)
-	}
-	go func() {
-		a.Generate(context.Background(), p.session.ID, text)
-	}()
 
+	p.app.CoderAgent.Generate(context.Background(), p.session.ID, text)
 	return tea.Batch(cmds...)
 }
 

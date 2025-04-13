@@ -9,6 +9,7 @@ import (
 
 	"github.com/kujtimiihoxha/termai/internal/db"
 	"github.com/kujtimiihoxha/termai/internal/history"
+	"github.com/kujtimiihoxha/termai/internal/llm/agent"
 	"github.com/kujtimiihoxha/termai/internal/logging"
 	"github.com/kujtimiihoxha/termai/internal/lsp"
 	"github.com/kujtimiihoxha/termai/internal/message"
@@ -22,6 +23,8 @@ type App struct {
 	Files       history.Service
 	Permissions permission.Service
 
+	CoderAgent agent.Service
+
 	LSPClients map[string]*lsp.Client
 
 	clientsMutex sync.RWMutex
@@ -31,7 +34,7 @@ type App struct {
 	watcherWG          sync.WaitGroup
 }
 
-func New(ctx context.Context, conn *sql.DB) *App {
+func New(ctx context.Context, conn *sql.DB) (*App, error) {
 	q := db.New(conn)
 	sessions := session.NewService(q)
 	messages := message.NewService(q)
@@ -45,9 +48,22 @@ func New(ctx context.Context, conn *sql.DB) *App {
 		LSPClients:  make(map[string]*lsp.Client),
 	}
 
+	var err error
+	app.CoderAgent, err = agent.NewCoderAgent(
+
+		app.Permissions,
+		app.Sessions,
+		app.Messages,
+		app.LSPClients,
+	)
+	if err != nil {
+		logging.Error("Failed to create coder agent", err)
+		return nil, err
+	}
+
 	app.initLSPClients(ctx)
 
-	return app
+	return app, nil
 }
 
 // Shutdown performs a clean shutdown of the application

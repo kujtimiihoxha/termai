@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
-	"github.com/kujtimiihoxha/termai/internal/config"
 )
 
 type DiffStats struct {
@@ -197,32 +196,32 @@ func isSplitDiffsAvailable() bool {
 }
 
 func formatWithSplitDiffs(diffText string, width int) (string, error) {
-	var cmd *exec.Cmd
+	args := []string{
+		"--color",
+	}
 
-	appCfg := config.Get()
-	appWd := config.WorkingDirectory()
-	script := filepath.Join(
-		appWd,
-		appCfg.Data.Directory,
-		"diff",
-		"index.mjs",
-	)
+	var diffCmd *exec.Cmd
 
-	cmd = exec.Command("node", script, "--color")
+	if _, err := exec.LookPath("git-split-diffs-opencode"); err == nil {
+		fullArgs := append([]string{"git-split-diffs-opencode"}, args...)
+		diffCmd = exec.Command(fullArgs[0], fullArgs[1:]...)
+	} else {
+		npxArgs := append([]string{"git-split-diffs-opencode"}, args...)
+		diffCmd = exec.Command("npx", npxArgs...)
+	}
 
-	cmd.Env = append(os.Environ(), fmt.Sprintf("COLUMNS=%d", width))
+	diffCmd.Env = append(os.Environ(), fmt.Sprintf("DIFF_COLUMNS=%d", width))
 
-	cmd.Stdin = strings.NewReader(diffText)
+	diffCmd.Stdin = strings.NewReader(diffText)
 
 	var out bytes.Buffer
-	cmd.Stdout = &out
+	diffCmd.Stdout = &out
 
 	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
+	diffCmd.Stderr = &stderr
 
-	err := cmd.Run()
-	if err != nil {
-		return "", fmt.Errorf("git-split-diffs error: %v, stderr: %s", err, stderr.String())
+	if err := diffCmd.Run(); err != nil {
+		return "", fmt.Errorf("git-split-diffs-opencode error: %w, stderr: %s", err, stderr.String())
 	}
 
 	return out.String(), nil

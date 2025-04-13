@@ -144,7 +144,7 @@ func (w *writeTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error
 		}
 	}
 
-	sessionID, messageID := getContextValues(ctx)
+	sessionID, messageID := GetContextValues(ctx)
 	if sessionID == "" || messageID == "" {
 		return NewTextErrorResponse("session ID or message ID is missing"), nil
 	}

@@ -9,7 +9,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/kujtimiihoxha/termai/internal/app"
-	"github.com/kujtimiihoxha/termai/internal/assets"
 	"github.com/kujtimiihoxha/termai/internal/config"
 	"github.com/kujtimiihoxha/termai/internal/db"
 	"github.com/kujtimiihoxha/termai/internal/llm/agent"
@@ -52,11 +51,6 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		err = assets.WriteAssets()
-		if err != nil {
-			logging.Error("Error writing assets: %v", err)
-		}
-
 		// Connect DB, this will also run migrations
 		conn, err := db.Connect()
 		if err != nil {
@@ -67,7 +61,11 @@ var rootCmd = &cobra.Command{
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		app := app.New(ctx, conn)
+		app, err := app.New(ctx, conn)
+		if err != nil {
+			logging.Error("Failed to create app: %v", err)
+			return err
+		}
 
 		// Set up the TUI
 		zone.NewGlobal()

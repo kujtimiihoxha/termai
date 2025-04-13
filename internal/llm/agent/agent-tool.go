@@ -5,14 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/kujtimiihoxha/termai/internal/app"
 	"github.com/kujtimiihoxha/termai/internal/llm/tools"
+	"github.com/kujtimiihoxha/termai/internal/lsp"
 	"github.com/kujtimiihoxha/termai/internal/message"
+	"github.com/kujtimiihoxha/termai/internal/session"
 )
 
 type agentTool struct {
-	parentSessionID string
-	app             *app.App
+	sessions   session.Service
+	messages   message.Service
+	lspClients map[string]*lsp.Client
 }
 
 const (
@@ -46,12 +48,17 @@ func (b *agentTool) Run(ctx context.Context, call tools.ToolCall) (tools.ToolRes
 		return tools.NewTextErrorResponse("prompt is required"), nil
 	}
 
-	agent, err := NewTaskAgent(b.app)
+	sessionID, messageID := tools.GetContextValues(ctx)
+	if sessionID == "" || messageID == "" {
+		return tools.NewTextErrorResponse("session ID and message ID are required"), nil
+	}
+
+	agent, err := NewTaskAgent(b.lspClients)
 	if err != nil {
 		return tools.NewTextErrorResponse(fmt.Sprintf("error creating agent: %s", err)), nil
 	}
 
-	session, err := b.app.Sessions.CreateTaskSession(ctx, call.ID, b.parentSessionID, "New Agent Session")
+	session, err := b.sessions.CreateTaskSession(ctx, call.ID, sessionID, "New Agent Session")
 	if err != nil {
 		return tools.NewTextErrorResponse(fmt.Sprintf("error creating session: %s", err)), nil
 	}
@@ -61,7 +68,7 @@ func (b *agentTool) Run(ctx context.Context, call tools.ToolCall) (tools.ToolRes
 		return tools.NewTextErrorResponse(fmt.Sprintf("error generating agent: %s", err)), nil
 	}
 
-	messages, err := b.app.Messages.List(ctx, session.ID)
+	messages, err := b.messages.List(ctx, session.ID)
 	if err != nil {
 		return tools.NewTextErrorResponse(fmt.Sprintf("error listing messages: %s", err)), nil
 	}
@@ -74,11 +81,11 @@ func (b *agentTool) Run(ctx context.Context, call tools.ToolCall) (tools.ToolRes
 		return tools.NewTextErrorResponse("no assistant message found"), nil
 	}
 
-	updatedSession, err := b.app.Sessions.Get(ctx, session.ID)
+	updatedSession, err := b.sessions.Get(ctx, session.ID)
 	if err != nil {
 		return tools.NewTextErrorResponse(fmt.Sprintf("error: %s", err)), nil
 	}
-	parentSession, err := b.app.Sessions.Get(ctx, b.parentSessionID)
+	parentSession, err := b.sessions.Get(ctx, sessionID)
 	if err != nil {
 		return tools.NewTextErrorResponse(fmt.Sprintf("error: %s", err)), nil
 	}
@@ -87,16 +94,19 @@ func (b *agentTool) Run(ctx context.Context, call tools.ToolCall) (tools.ToolRes
 	parentSession.PromptTokens += updatedSession.PromptTokens
 	parentSession.CompletionTokens += updatedSession.CompletionTokens
 
-	_, err = b.app.Sessions.Save(ctx, parentSession)
+	_, err = b.sessions.Save(ctx, parentSession)
 	if err != nil {
 		return tools.NewTextErrorResponse(fmt.Sprintf("error: %s", err)), nil
 	}
 	return tools.NewTextResponse(response.Content().String()), nil
 }
 
-func NewAgentTool(parentSessionID string, app *app.App) tools.BaseTool {
+func NewAgentTool(
+	Sessions session.Service,
+	Messages message.Service,
+) tools.BaseTool {
 	return &agentTool{
-		parentSessionID: parentSessionID,
-		app:             app,
+		sessions: Sessions,
+		messages: Messages,
 	}
 }

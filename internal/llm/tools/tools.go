@@ -66,7 +66,7 @@ type BaseTool interface {
 	Run(ctx context.Context, params ToolCall) (ToolResponse, error)
 }
 
-func getContextValues(ctx context.Context) (string, string) {
+func GetContextValues(ctx context.Context) (string, string) {
 	sessionID := ctx.Value(SessionIDContextKey)
 	messageID := ctx.Value(MessageIDContextKey)
 	if sessionID == nil {

@@ -4,71 +4,60 @@ import (
 	"context"
 	"errors"
 
-	"github.com/kujtimiihoxha/termai/internal/app"
 	"github.com/kujtimiihoxha/termai/internal/config"
 	"github.com/kujtimiihoxha/termai/internal/llm/models"
 	"github.com/kujtimiihoxha/termai/internal/llm/tools"
+	"github.com/kujtimiihoxha/termai/internal/lsp"
+	"github.com/kujtimiihoxha/termai/internal/message"
+	"github.com/kujtimiihoxha/termai/internal/permission"
+	"github.com/kujtimiihoxha/termai/internal/session"
 )
 
 type coderAgent struct {
-	*agent
+	Service
 }
 
-func (c *coderAgent) setAgentTool(sessionID string) {
-	inx := -1
-	for i, tool := range c.tools {
-		if tool.Info().Name == AgentToolName {
-			inx = i
-			break
-		}
-	}
-	if inx == -1 {
-		c.tools = append(c.tools, NewAgentTool(sessionID, c.App))
-	} else {
-		c.tools[inx] = NewAgentTool(sessionID, c.App)
-	}
-}
-
-func (c *coderAgent) Generate(ctx context.Context, sessionID string, content string) error {
-	c.setAgentTool(sessionID)
-	return c.generate(ctx, sessionID, content)
-}
-
-func NewCoderAgent(app *app.App) (Agent, error) {
+func NewCoderAgent(
+	permissions permission.Service,
+	sessions session.Service,
+	messages message.Service,
+	lspClients map[string]*lsp.Client,
+) (Service, error) {
 	model, ok := models.SupportedModels[config.Get().Model.Coder]
 	if !ok {
 		return nil, errors.New("model not supported")
 	}
 
 	ctx := context.Background()
-	agentProvider, titleGenerator, err := getAgentProviders(ctx, model)
+	otherTools := GetMcpTools(ctx, permissions)
+	if len(lspClients) > 0 {
+		otherTools = append(otherTools, tools.NewDiagnosticsTool(lspClients))
+	}
+	agent, err := NewAgent(
+		ctx,
+		sessions,
+		messages,
+		model,
+		append(
+			[]tools.BaseTool{
+				tools.NewBashTool(permissions),
+				tools.NewEditTool(lspClients, permissions),
+				tools.NewFetchTool(permissions),
+				tools.NewGlobTool(),
+				tools.NewGrepTool(),
+				tools.NewLsTool(),
+				tools.NewSourcegraphTool(),
+				tools.NewViewTool(lspClients),
+				tools.NewWriteTool(lspClients, permissions),
+				NewAgentTool(sessions, messages),
+			}, otherTools...,
+		),
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	otherTools := GetMcpTools(ctx, app.Permissions)
-	if len(app.LSPClients) > 0 {
-		otherTools = append(otherTools, tools.NewDiagnosticsTool(app.LSPClients))
-	}
 	return &coderAgent{
-		agent: &agent{
-			App: app,
-			tools: append(
-				[]tools.BaseTool{
-					tools.NewBashTool(app.Permissions),
-					tools.NewEditTool(app.LSPClients, app.Permissions),
-					tools.NewFetchTool(app.Permissions),
-					tools.NewGlobTool(),
-					tools.NewGrepTool(),
-					tools.NewLsTool(),
-					tools.NewSourcegraphTool(),
-					tools.NewViewTool(app.LSPClients),
-					tools.NewWriteTool(app.LSPClients, app.Permissions),
-				}, otherTools...,
-			),
-			model:          model,
-			agent:          agentProvider,
-			titleGenerator: titleGenerator,
-		},
+		agent,
 	}, nil
 }

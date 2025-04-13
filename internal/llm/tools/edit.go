@@ -190,7 +190,7 @@ func (e *editTool) createNewFile(ctx context.Context, filePath, content string) 
 		return er, fmt.Errorf("failed to create parent directories: %w", err)
 	}
 
-	sessionID, messageID := getContextValues(ctx)
+	sessionID, messageID := GetContextValues(ctx)
 	if sessionID == "" || messageID == "" {
 		return er, fmt.Errorf("session ID and message ID are required for creating a new file")
 	}
@@ -277,7 +277,7 @@ func (e *editTool) deleteContent(ctx context.Context, filePath, oldString string
 
 	newContent := oldContent[:index] + oldContent[index+len(oldString):]
 
-	sessionID, messageID := getContextValues(ctx)
+	sessionID, messageID := GetContextValues(ctx)
 
 	if sessionID == "" || messageID == "" {
 		return er, fmt.Errorf("session ID and message ID are required for creating a new file")
@@ -365,7 +365,7 @@ func (e *editTool) replaceContent(ctx context.Context, filePath, oldString, newS
 
 	newContent := oldContent[:index] + newString + oldContent[index+len(oldString):]
 
-	sessionID, messageID := getContextValues(ctx)
+	sessionID, messageID := GetContextValues(ctx)
 
 	if sessionID == "" || messageID == "" {
 		return er, fmt.Errorf("session ID and message ID are required for creating a new file")
@@ -409,4 +409,3 @@ func (e *editTool) replaceContent(ctx context.Context, filePath, oldString, newS
 
 	return er, nil
 }
-

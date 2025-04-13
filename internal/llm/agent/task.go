@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 
-	"github.com/kujtimiihoxha/termai/internal/app"
 	"github.com/kujtimiihoxha/termai/internal/config"
 	"github.com/kujtimiihoxha/termai/internal/llm/models"
 	"github.com/kujtimiihoxha/termai/internal/llm/tools"
+	"github.com/kujtimiihoxha/termai/internal/lsp"
 )
 
 type taskAgent struct {
@@ -18,7 +18,7 @@ func (c *taskAgent) Generate(ctx context.Context, sessionID string, content stri
 	return c.generate(ctx, sessionID, content)
 }
 
-func NewTaskAgent(app *app.App) (Agent, error) {
+func NewTaskAgent(lspClients map[string]*lsp.Client) (Service, error) {
 	model, ok := models.SupportedModels[config.Get().Model.Coder]
 	if !ok {
 		return nil, errors.New("model not supported")
@@ -31,13 +31,12 @@ func NewTaskAgent(app *app.App) (Agent, error) {
 	}
 	return &taskAgent{
 		agent: &agent{
-			App: app,
 			tools: []tools.BaseTool{
 				tools.NewGlobTool(),
 				tools.NewGrepTool(),
 				tools.NewLsTool(),
 				tools.NewSourcegraphTool(),
-				tools.NewViewTool(app.LSPClients),
+				tools.NewViewTool(lspClients),
 			},
 			model:          model,
 			agent:          agentProvider,

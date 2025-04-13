@@ -53,6 +53,7 @@ termai -d
 ### Keyboard Shortcuts
 
 #### Global Shortcuts
+
 - `?`: Toggle help panel
 - `Ctrl+C` or `q`: Quit application
 - `L`: View logs
@@ -60,10 +61,12 @@ termai -d
 - `Esc`: Close current view/dialog or return to normal mode
 
 #### Session Management
+
 - `N`: Create new session
 - `Enter` or `Space`: Select session (in sessions list)
 
 #### Editor Shortcuts (Vim-like)
+
 - `i`: Enter insert mode
 - `Esc`: Enter normal mode
 - `v`: Enter visual mode
@@ -72,6 +75,7 @@ termai -d
 - `Ctrl+S`: Send message (in insert mode)
 
 #### Navigation
+
 - Arrow keys: Navigate through lists and content
 - Page Up/Down: Scroll through content
 
@@ -111,16 +115,6 @@ go build -o termai
 # Run
 ./termai
 ```
-
-### Important: Building the Diff Script
-
-Before building or running the application, you must first build the diff script by running:
-
-```bash
-go run cmd/diff/main.go
-```
-
-This command generates the necessary JavaScript file (`index.mjs`) used by the diff functionality in the application.
 
 ## Acknowledgments
 

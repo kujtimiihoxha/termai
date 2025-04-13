@@ -57,7 +57,9 @@ func cleanupMessages(messages []message.Message) []message.Message {
 	// First pass: filter out canceled messages
 	var cleanedMessages []message.Message
 	for _, msg := range messages {
-		if msg.FinishReason() != "canceled" {
+		if msg.FinishReason() != "canceled" || len(msg.ToolCalls()) > 0 {
+			// if there are toolCalls this means we want to return it to the LLM telling it that those tools have been
+			// cancelled
 			cleanedMessages = append(cleanedMessages, msg)
 		}
 	}

@@ -7,7 +7,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/kujtimiihoxha/termai/internal/app"
-	"github.com/kujtimiihoxha/termai/internal/llm/agent"
 	"github.com/kujtimiihoxha/termai/internal/tui/layout"
 	"github.com/kujtimiihoxha/termai/internal/tui/styles"
 	"github.com/kujtimiihoxha/termai/internal/tui/util"
@@ -168,11 +167,6 @@ func (m *editorCmp) Send() tea.Cmd {
 		return util.ReportWarn("Assistant is still working on the previous message")
 	}
 
-	a, err := agent.NewCoderAgent(m.app)
-	if err != nil {
-		return util.ReportError(err)
-	}
-
 	content := strings.Join(m.editor.GetBuffer().Lines(), "\n")
 	if len(content) == 0 {
 		return util.ReportWarn("Message is empty")
@@ -181,7 +175,7 @@ func (m *editorCmp) Send() tea.Cmd {
 	m.cancelMessage = cancel
 	go func() {
 		defer cancel()
-		a.Generate(ctx, m.sessionID, content)
+		m.app.CoderAgent.Generate(ctx, m.sessionID, content)
 		m.cancelMessage = nil
 	}()
 
