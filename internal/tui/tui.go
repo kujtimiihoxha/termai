@@ -198,8 +198,8 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 					return a, util.CmdHandler(repl.SelectedSessionMsg{SessionID: s.ID})
 				}
-			case key.Matches(msg, keys.Logs):
-				return a, a.moveToPage(page.LogsPage)
+			// case key.Matches(msg, keys.Logs):
+			// 	return a, a.moveToPage(page.LogsPage)
 			case msg.String() == "O":
 				return a, a.moveToPage(page.ReplPage)
 			case key.Matches(msg, keys.Help):

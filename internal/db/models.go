@@ -8,6 +8,16 @@ import (
 	"database/sql"
 )
 
+type File struct {
+	ID        string `json:"id"`
+	SessionID string `json:"session_id"`
+	Path      string `json:"path"`
+	Content   string `json:"content"`
+	Version   string `json:"version"`
+	CreatedAt int64  `json:"created_at"`
+	UpdatedAt int64  `json:"updated_at"`
+}
+
 type Message struct {
 	ID         string         `json:"id"`
 	SessionID  string         `json:"session_id"`
