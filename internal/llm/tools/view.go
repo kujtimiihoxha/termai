@@ -135,7 +135,7 @@ func (v *viewTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error)
 
 			return NewTextErrorResponse(fmt.Sprintf("File not found: %s", filePath)), nil
 		}
-		return NewTextErrorResponse(fmt.Sprintf("Failed to access file: %s", err)), nil
+		return ToolResponse{}, fmt.Errorf("error accessing file: %w", err)
 	}
 
 	// Check if it's a directory
@@ -156,6 +156,7 @@ func (v *viewTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error)
 
 	// Check if it's an image file
 	isImage, imageType := isImageFile(filePath)
+	// TODO: handle images
 	if isImage {
 		return NewTextErrorResponse(fmt.Sprintf("This is an image file of type: %s\nUse a different tool to process images", imageType)), nil
 	}
@@ -163,7 +164,7 @@ func (v *viewTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error)
 	// Read the file content
 	content, lineCount, err := readTextFile(filePath, params.Offset, params.Limit)
 	if err != nil {
-		return NewTextErrorResponse(fmt.Sprintf("Failed to read file: %s", err)), nil
+		return ToolResponse{}, fmt.Errorf("error reading file: %w", err)
 	}
 
 	notifyLspOpenFile(ctx, filePath, v.lspClients)

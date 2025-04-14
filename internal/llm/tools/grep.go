@@ -27,6 +27,11 @@ type grepMatch struct {
 	modTime time.Time
 }
 
+type GrepMetadata struct {
+	NumberOfMatches int  `json:"number_of_matches"`
+	Truncated       bool `json:"truncated"`
+}
+
 type grepTool struct{}
 
 const (
@@ -110,7 +115,7 @@ func (g *grepTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error)
 
 	matches, truncated, err := searchFiles(params.Pattern, searchPath, params.Include, 100)
 	if err != nil {
-		return NewTextErrorResponse(fmt.Sprintf("error searching files: %s", err)), nil
+		return ToolResponse{}, fmt.Errorf("error searching files: %w", err)
 	}
 
 	var output string
@@ -127,7 +132,13 @@ func (g *grepTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error)
 		}
 	}
 
-	return NewTextResponse(output), nil
+	return WithResponseMetadata(
+		NewTextResponse(output),
+		GrepMetadata{
+			NumberOfMatches: len(matches),
+			Truncated:       truncated,
+		},
+	), nil
 }
 
 func pluralize(count int) string {

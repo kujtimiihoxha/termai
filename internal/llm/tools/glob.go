@@ -63,6 +63,11 @@ type GlobParams struct {
 	Path    string `json:"path"`
 }
 
+type GlobMetadata struct {
+	NumberOfFiles int  `json:"number_of_files"`
+	Truncated     bool `json:"truncated"`
+}
+
 type globTool struct{}
 
 func NewGlobTool() BaseTool {
@@ -104,7 +109,7 @@ func (g *globTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error)
 
 	files, truncated, err := globFiles(params.Pattern, searchPath, 100)
 	if err != nil {
-		return NewTextErrorResponse(fmt.Sprintf("error performing glob search: %s", err)), nil
+		return ToolResponse{}, fmt.Errorf("error finding files: %w", err)
 	}
 
 	var output string
@@ -117,7 +122,13 @@ func (g *globTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error)
 		}
 	}
 
-	return NewTextResponse(output), nil
+	return WithResponseMetadata(
+		NewTextResponse(output),
+		GlobMetadata{
+			NumberOfFiles: len(files),
+			Truncated:     truncated,
+		},
+	), nil
 }
 
 func globFiles(pattern, searchPath string, limit int) ([]string, bool, error) {

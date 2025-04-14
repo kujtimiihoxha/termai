@@ -30,8 +30,9 @@ type writeTool struct {
 }
 
 type WriteResponseMetadata struct {
-	Additions int `json:"additions"`
-	Removals  int `json:"removals"`
+	Diff      string `json:"diff"`
+	Additions int    `json:"additions"`
+	Removals  int    `json:"removals"`
 }
 
 const (
@@ -128,12 +129,12 @@ func (w *writeTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error
 			return NewTextErrorResponse(fmt.Sprintf("File %s already contains the exact content. No changes made.", filePath)), nil
 		}
 	} else if !os.IsNotExist(err) {
-		return NewTextErrorResponse(fmt.Sprintf("Failed to access file: %s", err)), nil
+		return ToolResponse{}, fmt.Errorf("error checking file: %w", err)
 	}
 
 	dir := filepath.Dir(filePath)
 	if err = os.MkdirAll(dir, 0o755); err != nil {
-		return NewTextErrorResponse(fmt.Sprintf("Failed to create parent directories: %s", err)), nil
+		return ToolResponse{}, fmt.Errorf("error creating directory: %w", err)
 	}
 
 	oldContent := ""
@@ -146,7 +147,7 @@ func (w *writeTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error
 
 	sessionID, messageID := GetContextValues(ctx)
 	if sessionID == "" || messageID == "" {
-		return NewTextErrorResponse("session ID or message ID is missing"), nil
+		return ToolResponse{}, fmt.Errorf("session_id and message_id are required")
 	}
 	diff, stats, err := git.GenerateGitDiffWithStats(
 		removeWorkingDirectoryPrefix(filePath),
@@ -154,7 +155,7 @@ func (w *writeTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error
 		params.Content,
 	)
 	if err != nil {
-		return NewTextErrorResponse(fmt.Sprintf("Failed to get file diff: %s", err)), nil
+		return ToolResponse{}, fmt.Errorf("error generating diff: %w", err)
 	}
 	p := w.permissions.Request(
 		permission.CreatePermissionRequest{
@@ -169,12 +170,12 @@ func (w *writeTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error
 		},
 	)
 	if !p {
-		return NewTextErrorResponse(fmt.Sprintf("Permission denied to create file: %s", filePath)), nil
+		return ToolResponse{}, permission.ErrorPermissionDenied
 	}
 
 	err = os.WriteFile(filePath, []byte(params.Content), 0o644)
 	if err != nil {
-		return NewTextErrorResponse(fmt.Sprintf("Failed to write file: %s", err)), nil
+		return ToolResponse{}, fmt.Errorf("error writing file: %w", err)
 	}
 
 	recordFileWrite(filePath)
@@ -186,6 +187,7 @@ func (w *writeTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error
 	result += getDiagnostics(filePath, w.lspClients)
 	return WithResponseMetadata(NewTextResponse(result),
 		WriteResponseMetadata{
+			Diff:      diff,
 			Additions: stats.Additions,
 			Removals:  stats.Removals,
 		},

@@ -27,8 +27,9 @@ type EditPermissionsParams struct {
 }
 
 type EditResponseMetadata struct {
-	Additions int `json:"additions"`
-	Removals  int `json:"removals"`
+	Diff      string `json:"diff"`
+	Additions int    `json:"additions"`
+	Removals  int    `json:"removals"`
 }
 
 type editTool struct {
@@ -216,6 +217,7 @@ func (e *editTool) createNewFile(ctx context.Context, filePath, content string) 
 	return WithResponseMetadata(
 		NewTextResponse("File created: "+filePath),
 		EditResponseMetadata{
+			Diff:      diff,
 			Additions: stats.Additions,
 			Removals:  stats.Removals,
 		},
@@ -308,6 +310,7 @@ func (e *editTool) deleteContent(ctx context.Context, filePath, oldString string
 	return WithResponseMetadata(
 		NewTextResponse("Content deleted from file: "+filePath),
 		EditResponseMetadata{
+			Diff:      diff,
 			Additions: stats.Additions,
 			Removals:  stats.Removals,
 		},
@@ -401,6 +404,7 @@ func (e *editTool) replaceContent(ctx context.Context, filePath, oldString, newS
 	return WithResponseMetadata(
 		NewTextResponse("Content replaced in file: "+filePath),
 		EditResponseMetadata{
+			Diff:      diff,
 			Additions: stats.Additions,
 			Removals:  stats.Removals,
 		}), nil

@@ -23,6 +23,11 @@ type TreeNode struct {
 	Children []*TreeNode `json:"children,omitempty"`
 }
 
+type LSMetadata struct {
+	NumberOfFiles int  `json:"number_of_files"`
+	Truncated     bool `json:"truncated"`
+}
+
 type lsTool struct{}
 
 const (
@@ -104,7 +109,7 @@ func (l *lsTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error) {
 
 	files, truncated, err := listDirectory(searchPath, params.Ignore, MaxLSFiles)
 	if err != nil {
-		return NewTextErrorResponse(fmt.Sprintf("error listing directory: %s", err)), nil
+		return ToolResponse{}, fmt.Errorf("error listing directory: %w", err)
 	}
 
 	tree := createFileTree(files)
@@ -114,7 +119,13 @@ func (l *lsTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error) {
 		output = fmt.Sprintf("There are more than %d files in the directory. Use a more specific path or use the Glob tool to find specific files. The first %d files and directories are included below:\n\n%s", MaxLSFiles, MaxLSFiles, output)
 	}
 
-	return NewTextResponse(output), nil
+	return WithResponseMetadata(
+		NewTextResponse(output),
+		LSMetadata{
+			NumberOfFiles: len(files),
+			Truncated:     truncated,
+		},
+	), nil
 }
 
 func listDirectory(initialPath string, ignorePatterns []string, limit int) ([]string, bool, error) {
