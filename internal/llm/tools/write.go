@@ -183,7 +183,7 @@ func (w *writeTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error
 
 	result := fmt.Sprintf("File successfully written: %s", filePath)
 	result = fmt.Sprintf("<result>\n%s\n</result>", result)
-	result += appendDiagnostics(filePath, w.lspClients)
+	result += getDiagnostics(filePath, w.lspClients)
 	return WithResponseMetadata(NewTextResponse(result),
 		WriteResponseMetadata{
 			Additions: stats.Additions,
