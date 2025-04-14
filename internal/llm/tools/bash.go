@@ -273,14 +273,14 @@ func (b *bashTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error)
 			},
 		)
 		if !p {
-			return NewTextErrorResponse("permission denied"), nil
+			return ToolResponse{}, permission.ErrorPermissionDenied
 		}
 	}
 	startTime := time.Now()
 	shell := shell.GetPersistentShell(config.WorkingDirectory())
 	stdout, stderr, exitCode, interrupted, err := shell.Exec(ctx, params.Command, params.Timeout)
 	if err != nil {
-		return NewTextErrorResponse(fmt.Sprintf("error executing command: %s", err)), nil
+		return ToolResponse{}, fmt.Errorf("error executing command: %w", err)
 	}
 	took := time.Since(startTime).Milliseconds()
 

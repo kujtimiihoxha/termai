@@ -1,12 +1,15 @@
 package permission
 
 import (
+	"errors"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/kujtimiihoxha/termai/internal/pubsub"
 )
+
+var ErrorPermissionDenied = errors.New("permission denied")
 
 type CreatePermissionRequest struct {
 	ToolName    string `json:"tool_name"`
@@ -15,6 +18,7 @@ type CreatePermissionRequest struct {
 	Params      any    `json:"params"`
 	Path        string `json:"path"`
 }
+
 type PermissionRequest struct {
 	ID          string `json:"id"`
 	SessionID   string `json:"session_id"`
