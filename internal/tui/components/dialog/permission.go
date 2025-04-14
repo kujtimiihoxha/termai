@@ -9,7 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/kujtimiihoxha/termai/internal/git"
+	"github.com/kujtimiihoxha/termai/internal/diff"
 	"github.com/kujtimiihoxha/termai/internal/llm/tools"
 	"github.com/kujtimiihoxha/termai/internal/permission"
 	"github.com/kujtimiihoxha/termai/internal/tui/components/core"
@@ -242,7 +242,7 @@ func (p *permissionDialogCmp) render() string {
 		// Calculate content height dynamically based on window size
 		maxContentHeight := p.height - lipgloss.Height(headerContent) - lipgloss.Height(form) - 2 - 2 - 1
 		p.contentViewPort.Height = maxContentHeight
-		diff, err := git.FormatDiff(pr.Diff, p.contentViewPort.Width)
+		diff, err := diff.FormatDiff(pr.Diff, diff.WithTotalWidth(p.contentViewPort.Width))
 		if err != nil {
 			diff = fmt.Sprintf("Error formatting diff: %v", err)
 		}
@@ -291,7 +291,7 @@ func (p *permissionDialogCmp) render() string {
 		// Calculate content height dynamically based on window size
 		maxContentHeight := p.height - lipgloss.Height(headerContent) - lipgloss.Height(form) - 2 - 2 - 1
 		p.contentViewPort.Height = maxContentHeight
-		diff, err := git.FormatDiff(pr.Diff, p.contentViewPort.Width)
+		diff, err := diff.FormatDiff(pr.Diff, diff.WithTotalWidth(p.contentViewPort.Width))
 		if err != nil {
 			diff = fmt.Sprintf("Error formatting diff: %v", err)
 		}

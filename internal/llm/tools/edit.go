@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/kujtimiihoxha/termai/internal/config"
-	"github.com/kujtimiihoxha/termai/internal/git"
+	"github.com/kujtimiihoxha/termai/internal/diff"
 	"github.com/kujtimiihoxha/termai/internal/lsp"
 	"github.com/kujtimiihoxha/termai/internal/permission"
 )
@@ -182,14 +182,12 @@ func (e *editTool) createNewFile(ctx context.Context, filePath, content string) 
 		return ToolResponse{}, fmt.Errorf("session ID and message ID are required for creating a new file")
 	}
 
-	diff, stats, err := git.GenerateGitDiffWithStats(
-		removeWorkingDirectoryPrefix(filePath),
+	diff, additions, removals := diff.GenerateDiff(
 		"",
 		content,
+		filePath,
+		filePath,
 	)
-	if err != nil {
-		return ToolResponse{}, fmt.Errorf("failed to get file diff: %w", err)
-	}
 	p := e.permissions.Request(
 		permission.CreatePermissionRequest{
 			Path:        filepath.Dir(filePath),
@@ -218,8 +216,8 @@ func (e *editTool) createNewFile(ctx context.Context, filePath, content string) 
 		NewTextResponse("File created: "+filePath),
 		EditResponseMetadata{
 			Diff:      diff,
-			Additions: stats.Additions,
-			Removals:  stats.Removals,
+			Additions: additions,
+			Removals:  removals,
 		},
 	), nil
 }
@@ -275,14 +273,12 @@ func (e *editTool) deleteContent(ctx context.Context, filePath, oldString string
 		return ToolResponse{}, fmt.Errorf("session ID and message ID are required for creating a new file")
 	}
 
-	diff, stats, err := git.GenerateGitDiffWithStats(
-		removeWorkingDirectoryPrefix(filePath),
+	diff, additions, removals := diff.GenerateDiff(
 		oldContent,
 		newContent,
+		filePath,
+		filePath,
 	)
-	if err != nil {
-		return ToolResponse{}, fmt.Errorf("failed to get file diff: %w", err)
-	}
 
 	p := e.permissions.Request(
 		permission.CreatePermissionRequest{
@@ -311,8 +307,8 @@ func (e *editTool) deleteContent(ctx context.Context, filePath, oldString string
 		NewTextResponse("Content deleted from file: "+filePath),
 		EditResponseMetadata{
 			Diff:      diff,
-			Additions: stats.Additions,
-			Removals:  stats.Removals,
+			Additions: additions,
+			Removals:  removals,
 		},
 	), nil
 }
@@ -367,15 +363,12 @@ func (e *editTool) replaceContent(ctx context.Context, filePath, oldString, newS
 	if sessionID == "" || messageID == "" {
 		return ToolResponse{}, fmt.Errorf("session ID and message ID are required for creating a new file")
 	}
-	diff, stats, err := git.GenerateGitDiffWithStats(
-		removeWorkingDirectoryPrefix(filePath),
+	diff, additions, removals := diff.GenerateDiff(
 		oldContent,
 		newContent,
+		filePath,
+		filePath,
 	)
-	if err != nil {
-		return ToolResponse{}, fmt.Errorf("failed to get file diff: %w", err)
-	}
-
 	p := e.permissions.Request(
 		permission.CreatePermissionRequest{
 			Path:        filepath.Dir(filePath),
@@ -405,7 +398,7 @@ func (e *editTool) replaceContent(ctx context.Context, filePath, oldString, newS
 		NewTextResponse("Content replaced in file: "+filePath),
 		EditResponseMetadata{
 			Diff:      diff,
-			Additions: stats.Additions,
-			Removals:  stats.Removals,
+			Additions: additions,
+			Removals:  removals,
 		}), nil
 }

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/kujtimiihoxha/termai/internal/config"
-	"github.com/kujtimiihoxha/termai/internal/git"
+	"github.com/kujtimiihoxha/termai/internal/diff"
 	"github.com/kujtimiihoxha/termai/internal/lsp"
 	"github.com/kujtimiihoxha/termai/internal/permission"
 )
@@ -149,14 +149,13 @@ func (w *writeTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error
 	if sessionID == "" || messageID == "" {
 		return ToolResponse{}, fmt.Errorf("session_id and message_id are required")
 	}
-	diff, stats, err := git.GenerateGitDiffWithStats(
-		removeWorkingDirectoryPrefix(filePath),
+
+	diff, additions, removals := diff.GenerateDiff(
 		oldContent,
 		params.Content,
+		filePath,
+		filePath,
 	)
-	if err != nil {
-		return ToolResponse{}, fmt.Errorf("error generating diff: %w", err)
-	}
 	p := w.permissions.Request(
 		permission.CreatePermissionRequest{
 			Path:        filePath,
@@ -188,8 +187,8 @@ func (w *writeTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error
 	return WithResponseMetadata(NewTextResponse(result),
 		WriteResponseMetadata{
 			Diff:      diff,
-			Additions: stats.Additions,
-			Removals:  stats.Removals,
+			Additions: additions,
+			Removals:  removals,
 		},
 	), nil
 }
