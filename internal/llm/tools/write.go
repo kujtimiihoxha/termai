@@ -154,7 +154,6 @@ func (w *writeTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error
 		oldContent,
 		params.Content,
 		filePath,
-		filePath,
 	)
 	p := w.permissions.Request(
 		permission.CreatePermissionRequest{

@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -15,6 +17,8 @@ import (
 	"github.com/alecthomas/chroma/v2/styles"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/sergi/go-diff/diffmatchpatch"
 )
 
@@ -224,21 +228,6 @@ type ParseConfig struct {
 // ParseOption defines a function that modifies a ParseConfig.
 type ParseOption func(*ParseConfig)
 
-// NewParseConfig creates a ParseConfig with default values and applies any provided options.
-func NewParseConfig(opts ...ParseOption) ParseConfig {
-	// Set default values
-	config := ParseConfig{
-		ContextSize: 3,
-	}
-
-	// Apply all provided options
-	for _, opt := range opts {
-		opt(&config)
-	}
-
-	return config
-}
-
 // WithContextSize sets the number of context lines to include.
 func WithContextSize(size int) ParseOption {
 	return func(p *ParseConfig) {
@@ -347,6 +336,10 @@ func ParseUnifiedDiff(diff string) (DiffResult, error) {
 			continue
 		}
 
+		// ignore the \\ No newline at end of file
+		if strings.HasPrefix(line, "\\ No newline at end of file") {
+			continue
+		}
 		if currentHunk == nil {
 			continue
 		}
@@ -450,32 +443,22 @@ func colorizeSegments(diffs []diffmatchpatch.Diff, isOld bool, style StyleConfig
 	removedLineStyle := lipgloss.NewStyle().Background(style.RemovedLineBg)
 	addedLineStyle := lipgloss.NewStyle().Background(style.AddedLineBg)
 
-	afterBg := false
-
 	for _, d := range diffs {
 		switch d.Type {
 		case diffmatchpatch.DiffEqual:
 			// Handle text that's the same in both versions
-			if afterBg {
-				if isOld {
-					buf.WriteString(removedLineStyle.Render(d.Text))
-				} else {
-					buf.WriteString(addedLineStyle.Render(d.Text))
-				}
-			} else {
-				buf.WriteString(d.Text)
-			}
+			buf.WriteString(d.Text)
 		case diffmatchpatch.DiffDelete:
 			// Handle deleted text (only show in old version)
 			if isOld {
 				buf.WriteString(removeBg.Render(d.Text))
-				afterBg = true
+				buf.WriteString(removedLineStyle.Render(""))
 			}
 		case diffmatchpatch.DiffInsert:
 			// Handle inserted text (only show in new version)
 			if !isOld {
 				buf.WriteString(addBg.Render(d.Text))
-				afterBg = true
+				buf.WriteString(addedLineStyle.Render(""))
 			}
 		}
 	}
@@ -621,7 +604,13 @@ func renderLeftColumn(fileName string, dl *DiffLine, colWidth int, styles StyleC
 	}
 
 	lineText := prefix + content
-	return bgStyle.MaxHeight(1).Width(colWidth).Render(ansi.Truncate(lineText, colWidth, "..."))
+	return bgStyle.MaxHeight(1).Width(colWidth).Render(
+		ansi.Truncate(
+			lineText,
+			colWidth,
+			lipgloss.NewStyle().Background(styles.HunkLineBg).Foreground(styles.HunkLineFg).Render("..."),
+		),
+	)
 }
 
 // renderRightColumn formats the right side of a side-by-side diff.
@@ -662,7 +651,13 @@ func renderRightColumn(fileName string, dl *DiffLine, colWidth int, styles Style
 	}
 
 	lineText := prefix + content
-	return bgStyle.MaxHeight(1).Width(colWidth).Render(ansi.Truncate(lineText, colWidth, "..."))
+	return bgStyle.MaxHeight(1).Width(colWidth).Render(
+		ansi.Truncate(
+			lineText,
+			colWidth,
+			lipgloss.NewStyle().Background(styles.HunkLineBg).Foreground(styles.HunkLineFg).Render("..."),
+		),
+	)
 }
 
 // -------------------------------------------------------------------------
@@ -718,278 +713,87 @@ func FormatDiff(diffText string, opts ...SideBySideOption) (string, error) {
 }
 
 // GenerateDiff creates a unified diff from two file contents.
-func GenerateDiff(beforeContent, afterContent, beforeFilename, afterFilename string, opts ...ParseOption) (string, int, int) {
-	config := NewParseConfig(opts...)
-
-	var output strings.Builder
-
-	// Ensure we handle newlines correctly
-	beforeHasNewline := len(beforeContent) > 0 && beforeContent[len(beforeContent)-1] == '\n'
-	afterHasNewline := len(afterContent) > 0 && afterContent[len(afterContent)-1] == '\n'
-
-	// Split into lines
-	beforeLines := strings.Split(beforeContent, "\n")
-	afterLines := strings.Split(afterContent, "\n")
-
-	// Remove empty trailing element from the split if the content ended with a newline
-	if beforeHasNewline && len(beforeLines) > 0 {
-		beforeLines = beforeLines[:len(beforeLines)-1]
+func GenerateDiff(beforeContent, afterContent, fileName string) (string, int, int) {
+	tempDir, err := os.MkdirTemp("", "git-diff-temp")
+	if err != nil {
+		return "", 0, 0
 	}
-	if afterHasNewline && len(afterLines) > 0 {
-		afterLines = afterLines[:len(afterLines)-1]
+	defer os.RemoveAll(tempDir)
+
+	repo, err := git.PlainInit(tempDir, false)
+	if err != nil {
+		return "", 0, 0
 	}
 
-	dmp := diffmatchpatch.New()
-	dmp.DiffTimeout = 5 * time.Second
-
-	// Convert lines to characters for efficient diffing
-	lineArray1, lineArray2, lineArrays := dmp.DiffLinesToChars(beforeContent, afterContent)
-	diffs := dmp.DiffMain(lineArray1, lineArray2, false)
-	diffs = dmp.DiffCharsToLines(diffs, lineArrays)
-
-	// Default filenames if not provided
-	if beforeFilename == "" {
-		beforeFilename = "a"
-	}
-	if afterFilename == "" {
-		afterFilename = "b"
+	wt, err := repo.Worktree()
+	if err != nil {
+		return "", 0, 0
 	}
 
-	// Write diff header
-	output.WriteString(fmt.Sprintf("diff --git a/%s b/%s\n", beforeFilename, afterFilename))
-	output.WriteString(fmt.Sprintf("--- a/%s\n", beforeFilename))
-	output.WriteString(fmt.Sprintf("+++ b/%s\n", afterFilename))
+	fullPath := filepath.Join(tempDir, fileName)
+	if err = os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
+		return "", 0, 0
+	}
+	if err = os.WriteFile(fullPath, []byte(beforeContent), 0o644); err != nil {
+		return "", 0, 0
+	}
 
-	line1 := 0 // Line numbers start from 0 internally
-	line2 := 0
+	_, err = wt.Add(fileName)
+	if err != nil {
+		return "", 0, 0
+	}
+
+	beforeCommit, err := wt.Commit("Before", &git.CommitOptions{
+		Author: &object.Signature{
+			Name:  "OpenCode",
+			Email: "coder@opencode.ai",
+			When:  time.Now(),
+		},
+	})
+	if err != nil {
+		return "", 0, 0
+	}
+
+	if err = os.WriteFile(fullPath, []byte(afterContent), 0o644); err != nil {
+	}
+
+	_, err = wt.Add(fileName)
+	if err != nil {
+		return "", 0, 0
+	}
+
+	afterCommit, err := wt.Commit("After", &git.CommitOptions{
+		Author: &object.Signature{
+			Name:  "OpenCode",
+			Email: "coder@opencode.ai",
+			When:  time.Now(),
+		},
+	})
+	if err != nil {
+		return "", 0, 0
+	}
+
+	beforeCommitObj, err := repo.CommitObject(beforeCommit)
+	if err != nil {
+		return "", 0, 0
+	}
+
+	afterCommitObj, err := repo.CommitObject(afterCommit)
+	if err != nil {
+		return "", 0, 0
+	}
+
+	patch, err := beforeCommitObj.Patch(afterCommitObj)
+	if err != nil {
+		return "", 0, 0
+	}
+
 	additions := 0
-	deletions := 0
-
-	var hunks []string
-	var currentHunk strings.Builder
-	var hunkStartLine1, hunkStartLine2 int
-	var hunkLines1, hunkLines2 int
-	inHunk := false
-
-	contextSize := config.ContextSize
-
-	// startHunk begins recording a new hunk
-	startHunk := func(startLine1, startLine2 int) {
-		inHunk = true
-		hunkStartLine1 = startLine1
-		hunkStartLine2 = startLine2
-		hunkLines1 = 0
-		hunkLines2 = 0
-		currentHunk.Reset()
+	removals := 0
+	for _, fileStat := range patch.Stats() {
+		additions += fileStat.Addition
+		removals += fileStat.Deletion
 	}
 
-	// writeHunk adds the current hunk to the hunks slice
-	writeHunk := func() {
-		if inHunk {
-			hunkHeader := fmt.Sprintf("@@ -%d,%d +%d,%d @@\n",
-				hunkStartLine1+1, hunkLines1,
-				hunkStartLine2+1, hunkLines2)
-			hunks = append(hunks, hunkHeader+currentHunk.String())
-			inHunk = false
-		}
-	}
-
-	// Process diffs to create hunks
-	pendingContext := make([]string, 0, contextSize*2)
-	var contextLines1, contextLines2 int
-
-	// Helper function to add context lines to the hunk
-	addContextToHunk := func(lines []string, count int) {
-		for i := 0; i < count; i++ {
-			if i < len(lines) {
-				currentHunk.WriteString(" " + lines[i] + "\n")
-				hunkLines1++
-				hunkLines2++
-			}
-		}
-	}
-
-	// Process diffs
-	for _, diff := range diffs {
-		lines := strings.Split(diff.Text, "\n")
-
-		// Remove empty trailing line that comes from splitting a string that ends with \n
-		if len(lines) > 0 && lines[len(lines)-1] == "" && diff.Text[len(diff.Text)-1] == '\n' {
-			lines = lines[:len(lines)-1]
-		}
-
-		switch diff.Type {
-		case diffmatchpatch.DiffEqual:
-			// If we have enough equal lines to serve as context, add them to pending
-			pendingContext = append(pendingContext, lines...)
-
-			// If pending context grows too large, trim it
-			if len(pendingContext) > contextSize*2 {
-				pendingContext = pendingContext[len(pendingContext)-contextSize*2:]
-			}
-
-			// If we're in a hunk, add the necessary context
-			if inHunk {
-				// Only add the first contextSize lines as trailing context
-				numContextLines := min(contextSize, len(lines))
-				addContextToHunk(lines[:numContextLines], numContextLines)
-
-				// If we've added enough trailing context, close the hunk
-				if numContextLines >= contextSize {
-					writeHunk()
-				}
-			}
-
-			line1 += len(lines)
-			line2 += len(lines)
-			contextLines1 += len(lines)
-			contextLines2 += len(lines)
-
-		case diffmatchpatch.DiffDelete, diffmatchpatch.DiffInsert:
-			// Start a new hunk if needed
-			if !inHunk {
-				// Determine how many context lines we can add before
-				contextBefore := min(contextSize, len(pendingContext))
-				ctxStartIdx := len(pendingContext) - contextBefore
-
-				// Calculate the correct start lines
-				startLine1 := line1 - contextLines1 + ctxStartIdx
-				startLine2 := line2 - contextLines2 + ctxStartIdx
-
-				startHunk(startLine1, startLine2)
-
-				// Add the context lines before
-				addContextToHunk(pendingContext[ctxStartIdx:], contextBefore)
-			}
-
-			// Reset context tracking when we see a diff
-			pendingContext = pendingContext[:0]
-			contextLines1 = 0
-			contextLines2 = 0
-
-			// Add the changes
-			if diff.Type == diffmatchpatch.DiffDelete {
-				for _, line := range lines {
-					currentHunk.WriteString("-" + line + "\n")
-					hunkLines1++
-					deletions++
-				}
-				line1 += len(lines)
-			} else { // DiffInsert
-				for _, line := range lines {
-					currentHunk.WriteString("+" + line + "\n")
-					hunkLines2++
-					additions++
-				}
-				line2 += len(lines)
-			}
-		}
-	}
-
-	// Write the final hunk if there's one pending
-	if inHunk {
-		writeHunk()
-	}
-
-	// Merge hunks that are close to each other (within 2*contextSize lines)
-	var mergedHunks []string
-	if len(hunks) > 0 {
-		mergedHunks = append(mergedHunks, hunks[0])
-
-		for i := 1; i < len(hunks); i++ {
-			prevHunk := mergedHunks[len(mergedHunks)-1]
-			currHunk := hunks[i]
-
-			// Extract line numbers to check proximity
-			var prevStart, prevLen, currStart, currLen int
-			fmt.Sscanf(prevHunk, "@@ -%d,%d", &prevStart, &prevLen)
-			fmt.Sscanf(currHunk, "@@ -%d,%d", &currStart, &currLen)
-
-			prevEnd := prevStart + prevLen - 1
-
-			// If hunks are close, merge them
-			if currStart-prevEnd <= contextSize*2 {
-				// Create a merged hunk - this is a simplification, real git has more complex merging logic
-				merged := mergeHunks(prevHunk, currHunk)
-				mergedHunks[len(mergedHunks)-1] = merged
-			} else {
-				mergedHunks = append(mergedHunks, currHunk)
-			}
-		}
-	}
-
-	// Write all hunks to output
-	for _, hunk := range mergedHunks {
-		output.WriteString(hunk)
-	}
-
-	// Handle "No newline at end of file" notifications
-	if !beforeHasNewline && len(beforeLines) > 0 {
-		// Find the last deletion in the diff and add the notification after it
-		lastPos := strings.LastIndex(output.String(), "\n-")
-		if lastPos != -1 {
-			// Insert the notification after the line
-			str := output.String()
-			output.Reset()
-			output.WriteString(str[:lastPos+1])
-			output.WriteString("\\ No newline at end of file\n")
-			output.WriteString(str[lastPos+1:])
-		}
-	}
-
-	if !afterHasNewline && len(afterLines) > 0 {
-		// Find the last insertion in the diff and add the notification after it
-		lastPos := strings.LastIndex(output.String(), "\n+")
-		if lastPos != -1 {
-			// Insert the notification after the line
-			str := output.String()
-			output.Reset()
-			output.WriteString(str[:lastPos+1])
-			output.WriteString("\\ No newline at end of file\n")
-			output.WriteString(str[lastPos+1:])
-		}
-	}
-
-	// Return the diff without the summary line
-	return output.String(), additions, deletions
-}
-
-// Helper function to merge two hunks
-func mergeHunks(hunk1, hunk2 string) string {
-	// This is a simplified implementation
-	// A full implementation would need to properly recalculate the hunk header
-	// and remove redundant context lines
-
-	// Extract header info from both hunks
-	var start1, len1, start2, len2 int
-	var startB1, lenB1, startB2, lenB2 int
-
-	fmt.Sscanf(hunk1, "@@ -%d,%d +%d,%d @@", &start1, &len1, &startB1, &lenB1)
-	fmt.Sscanf(hunk2, "@@ -%d,%d +%d,%d @@", &start2, &len2, &startB2, &lenB2)
-
-	// Split the hunks to get content
-	parts1 := strings.SplitN(hunk1, "\n", 2)
-	parts2 := strings.SplitN(hunk2, "\n", 2)
-
-	content1 := ""
-	content2 := ""
-
-	if len(parts1) > 1 {
-		content1 = parts1[1]
-	}
-	if len(parts2) > 1 {
-		content2 = parts2[1]
-	}
-
-	// Calculate the new header
-	newEnd := max(start1+len1-1, start2+len2-1)
-	newEndB := max(startB1+lenB1-1, startB2+lenB2-1)
-
-	newLen := newEnd - start1 + 1
-	newLenB := newEndB - startB1 + 1
-
-	newHeader := fmt.Sprintf("@@ -%d,%d +%d,%d @@", start1, newLen, startB1, newLenB)
-
-	// Combine the content, potentially with some overlap handling
-	return newHeader + "\n" + content1 + content2
+	return patch.String(), additions, removals
 }

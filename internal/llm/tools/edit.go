@@ -186,7 +186,6 @@ func (e *editTool) createNewFile(ctx context.Context, filePath, content string) 
 		"",
 		content,
 		filePath,
-		filePath,
 	)
 	p := e.permissions.Request(
 		permission.CreatePermissionRequest{
@@ -277,7 +276,6 @@ func (e *editTool) deleteContent(ctx context.Context, filePath, oldString string
 		oldContent,
 		newContent,
 		filePath,
-		filePath,
 	)
 
 	p := e.permissions.Request(
@@ -366,7 +364,6 @@ func (e *editTool) replaceContent(ctx context.Context, filePath, oldString, newS
 	diff, additions, removals := diff.GenerateDiff(
 		oldContent,
 		newContent,
-		filePath,
 		filePath,
 	)
 	p := e.permissions.Request(
