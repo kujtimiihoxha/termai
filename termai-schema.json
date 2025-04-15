@@ -1,0 +1,195 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TermAI Configuration",
+  "description": "Configuration for the TermAI application",
+  "type": "object",
+  "properties": {
+    "model": {
+      "type": "object",
+      "description": "Configuration for AI models",
+      "properties": {
+        "coder": {
+          "type": "string",
+          "description": "The model ID to use for coding tasks",
+          "enum": [
+            "claude-3.5-sonnet",
+            "claude-3-haiku",
+            "claude-3.7-sonnet",
+            "gpt-4o",
+            "gemini-2.5",
+            "gemini-2.0-flash",
+            "qwen-qwq",
+            "bedrock.claude-3.7-sonnet"
+          ]
+        },
+        "coderMaxTokens": {
+          "type": "integer",
+          "description": "Maximum number of tokens for coder model responses",
+          "default": 5000,
+          "minimum": 1
+        },
+        "task": {
+          "type": "string",
+          "description": "The model ID to use for general tasks",
+          "enum": [
+            "claude-3.5-sonnet",
+            "claude-3-haiku",
+            "claude-3.7-sonnet",
+            "gpt-4o",
+            "gemini-2.5",
+            "gemini-2.0-flash",
+            "qwen-qwq",
+            "bedrock.claude-3.7-sonnet"
+          ]
+        },
+        "taskMaxTokens": {
+          "type": "integer",
+          "description": "Maximum number of tokens for task model responses",
+          "default": 5000,
+          "minimum": 1
+        }
+      }
+    },
+    "providers": {
+      "type": "object",
+      "description": "API provider configurations",
+      "properties": {
+        "anthropic": {
+          "type": "object",
+          "properties": {
+            "apiKey": { "type": "string", "description": "Anthropic API key" },
+            "enabled": { "type": "boolean", "default": false },
+            "disableCache": { "type": "boolean", "default": false },
+            "useBedrock": { "type": "boolean", "default": false }
+          }
+        },
+        "openai": {
+          "type": "object",
+          "properties": {
+            "apiKey": { "type": "string", "description": "OpenAI API key" },
+            "enabled": { "type": "boolean", "default": false }
+          }
+        },
+        "gemini": {
+          "type": "object",
+          "properties": {
+            "apiKey": { "type": "string", "description": "Gemini API key" },
+            "enabled": { "type": "boolean", "default": false }
+          }
+        },
+        "groq": {
+          "type": "object",
+          "properties": {
+            "apiKey": { "type": "string", "description": "GROQ API key" },
+            "enabled": { "type": "boolean", "default": false }
+          }
+        },
+        "bedrock": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean", "default": true }
+          }
+        }
+      }
+    },
+    "data": {
+      "type": "object",
+      "description": "Data storage configuration",
+      "properties": {
+        "directory": {
+          "type": "string",
+          "description": "Directory to store data files",
+          "default": ".termai"
+        }
+      }
+    },
+    "log": {
+      "type": "object",
+      "description": "Logging configuration",
+      "properties": {
+        "level": {
+          "type": "string",
+          "description": "Log level",
+          "enum": ["debug", "info", "warn", "error"],
+          "default": "info"
+        }
+      }
+    },
+    "lsp": {
+      "type": "object",
+      "description": "Language Server Protocol configurations",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "disabled": {
+            "type": "boolean",
+            "description": "Whether this LSP is disabled"
+          },
+          "command": {
+            "type": "string",
+            "description": "Command to start the LSP server"
+          },
+          "args": {
+            "type": "array",
+            "description": "Arguments to pass to the LSP server command",
+            "items": { "type": "string" }
+          },
+          "options": {
+            "type": "object",
+            "description": "Additional options for the LSP server"
+          }
+        }
+      },
+      "examples": [
+        {
+          "gopls": {
+            "command": "gopls"
+          }
+        }
+      ]
+    },
+    "mcpServers": {
+      "type": "object",
+      "description": "MCP server configurations",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "Command to start the MCP server"
+          },
+          "env": {
+            "type": "array",
+            "description": "Environment variables for the MCP server",
+            "items": { "type": "string" }
+          },
+          "args": {
+            "type": "array",
+            "description": "Arguments to pass to the MCP server command",
+            "items": { "type": "string" }
+          },
+          "type": {
+            "type": "string",
+            "description": "MCP server type",
+            "enum": ["stdio", "sse"],
+            "default": "stdio"
+          },
+          "url": {
+            "type": "string",
+            "description": "URL for the MCP server (for SSE type)"
+          },
+          "headers": {
+            "type": "object",
+            "description": "HTTP headers for the MCP server (for SSE type)",
+            "additionalProperties": { "type": "string" }
+          }
+        }
+      }
+    },
+    "debug": {
+      "type": "boolean",
+      "description": "Enable debug mode",
+      "default": false
+    }
+  }
+}

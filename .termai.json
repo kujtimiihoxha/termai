@@ -1,4 +1,5 @@
 {
+  "$schema": "./termai-schema.json",
   "model": {
     "coder": "claude-3.7-sonnet",
     "coderMaxTokens": 20000
