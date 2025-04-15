@@ -53,7 +53,7 @@ func (b *agentTool) Run(ctx context.Context, call tools.ToolCall) (tools.ToolRes
 		return tools.ToolResponse{}, fmt.Errorf("session_id and message_id are required")
 	}
 
-	agent, err := NewTaskAgent(b.lspClients)
+	agent, err := NewTaskAgent(b.messages, b.sessions, b.lspClients)
 	if err != nil {
 		return tools.ToolResponse{}, fmt.Errorf("error creating agent: %s", err)
 	}
@@ -105,9 +105,11 @@ func (b *agentTool) Run(ctx context.Context, call tools.ToolCall) (tools.ToolRes
 func NewAgentTool(
 	Sessions session.Service,
 	Messages message.Service,
+	LspClients map[string]*lsp.Client,
 ) tools.BaseTool {
 	return &agentTool{
-		sessions: Sessions,
-		messages: Messages,
+		sessions:   Sessions,
+		messages:   Messages,
+		lspClients: LspClients,
 	}
 }

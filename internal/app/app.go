@@ -48,9 +48,10 @@ func New(ctx context.Context, conn *sql.DB) (*App, error) {
 		LSPClients:  make(map[string]*lsp.Client),
 	}
 
+	app.initLSPClients(ctx)
+
 	var err error
 	app.CoderAgent, err = agent.NewCoderAgent(
-
 		app.Permissions,
 		app.Sessions,
 		app.Messages,
@@ -60,8 +61,6 @@ func New(ctx context.Context, conn *sql.DB) (*App, error) {
 		logging.Error("Failed to create coder agent", err)
 		return nil, err
 	}
-
-	app.initLSPClients(ctx)
 
 	return app, nil
 }

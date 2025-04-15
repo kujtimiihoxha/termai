@@ -272,5 +272,8 @@ func Get() *Config {
 
 // WorkingDirectory returns the current working directory from the configuration.
 func WorkingDirectory() string {
-	return viper.GetString("wd")
+	if cfg == nil {
+		panic("config not loaded")
+	}
+	return cfg.WorkingDir
 }

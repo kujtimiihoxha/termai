@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"runtime/debug"
 	"strings"
 	"sync"
 
@@ -88,6 +90,21 @@ func (a *agent) Generate(ctx context.Context, sessionID string, content string) 
 		defer func() {
 			if r := recover(); r != nil {
 				logging.ErrorPersist(fmt.Sprintf("Panic in Generate: %v", r))
+
+				// dump stack trace into a file
+				file, err := os.Create("panic.log")
+				if err != nil {
+					logging.ErrorPersist(fmt.Sprintf("Failed to create panic log: %v", err))
+					return
+				}
+
+				defer file.Close()
+
+				stackTrace := debug.Stack()
+				if _, err := file.Write(stackTrace); err != nil {
+					logging.ErrorPersist(fmt.Sprintf("Failed to write panic log: %v", err))
+				}
+
 			}
 		}()
 		defer a.activeRequests.Delete(sessionID)

@@ -49,7 +49,7 @@ func NewCoderAgent(
 				tools.NewSourcegraphTool(),
 				tools.NewViewTool(lspClients),
 				tools.NewWriteTool(lspClients, permissions),
-				NewAgentTool(sessions, messages),
+				NewAgentTool(sessions, messages, lspClients),
 			}, otherTools...,
 		),
 	)
