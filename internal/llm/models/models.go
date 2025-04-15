@@ -23,7 +23,7 @@ const (
 	Claude3Haiku   ModelID = "claude-3-haiku"
 	Claude37Sonnet ModelID = "claude-3.7-sonnet"
 	// OpenAI
-	GPT4o ModelID = "gpt-4o"
+	GPT41 ModelID = "gpt-4.1"
 
 	// GEMINI
 	GEMINI25      ModelID = "gemini-2.5"
@@ -78,15 +78,15 @@ var SupportedModels = map[ModelID]Model{
 	},
 
 	// OpenAI
-	GPT4o: {
-		ID:                 GPT4o,
-		Name:               "GPT-4o",
+	GPT41: {
+		ID:                 GPT41,
+		Name:               "GPT-4.1",
 		Provider:           ProviderOpenAI,
-		APIModel:           "gpt-4o",
-		CostPer1MIn:        2.50,
-		CostPer1MInCached:  1.25,
+		APIModel:           "gpt-4.1",
+		CostPer1MIn:        2.00,
+		CostPer1MInCached:  0.50,
 		CostPer1MOutCached: 0,
-		CostPer1MOut:       10.00,
+		CostPer1MOut:       8.00,
 	},
 
 	// GEMINI

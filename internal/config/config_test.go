@@ -223,7 +223,7 @@ func TestLoad(t *testing.T) {
 				anthropicKey:  "",
 				openaiKey:     "test-key",
 				geminiKey:     "test-key",
-				expectedModel: models.GPT4o,
+				expectedModel: models.GPT41,
 			},
 			{
 				name:          "fallback to gemini when no others",
@@ -237,9 +237,9 @@ func TestLoad(t *testing.T) {
 				anthropicKey:     "test-key",
 				openaiKey:        "test-key",
 				geminiKey:        "test-key",
-				explicitModel:    models.GPT4o,
+				explicitModel:    models.GPT41,
 				useExplicitModel: true,
-				expectedModel:    models.GPT4o,
+				expectedModel:    models.GPT41,
 			},
 		}
 

@@ -116,8 +116,8 @@ func Load(debug bool) error {
 		viper.SetDefault("providers.openai.apiKey", os.Getenv("OPENAI_API_KEY"))
 		viper.SetDefault("providers.openai.enabled", true)
 		if !defaultModelSet {
-			viper.SetDefault("model.coder", models.GPT4o)
-			viper.SetDefault("model.task", models.GPT4o)
+			viper.SetDefault("model.coder", models.GPT41)
+			viper.SetDefault("model.task", models.GPT41)
 			defaultModelSet = true
 		}
 	}
