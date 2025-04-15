@@ -31,7 +31,7 @@ go.work
 .Trashes
 ehthumbs.db
 Thumbs.db
-debug.log
+*.log
 
 # Binary output directory
 /bin/
@@ -44,3 +44,4 @@ debug.log
 .opencode
 
 internal/assets/diff/index.mjs
+cmd/test/*
