@@ -97,7 +97,12 @@ func NewClient(ctx context.Context, command string, args ...string) (*Client, er
 	}()
 
 	// Start message handling loop
-	go client.handleMessages()
+	go func() {
+		defer logging.RecoverPanic("LSP-message-handler", func() {
+			logging.ErrorPersist("LSP message handler crashed, LSP functionality may be impaired")
+		})
+		client.handleMessages()
+	}()
 
 	return client, nil
 }
@@ -374,7 +379,7 @@ func (c *Client) CloseFile(ctx context.Context, filepath string) error {
 		},
 	}
 
-	if cnf.Debug {
+	if cnf.DebugLSP {
 		logging.Debug("Closing file", "file", filepath)
 	}
 	if err := c.Notify(ctx, "textDocument/didClose", params); err != nil {
@@ -413,12 +418,12 @@ func (c *Client) CloseAllFiles(ctx context.Context) {
 	// Then close them all
 	for _, filePath := range filesToClose {
 		err := c.CloseFile(ctx, filePath)
-		if err != nil && cnf.Debug {
+		if err != nil && cnf.DebugLSP {
 			logging.Warn("Error closing file", "file", filePath, "error", err)
 		}
 	}
 
-	if cnf.Debug {
+	if cnf.DebugLSP {
 		logging.Debug("Closed all files", "files", filesToClose)
 	}
 }

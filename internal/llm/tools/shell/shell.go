@@ -83,11 +83,21 @@ func newPersistentShell(cwd string) *PersistentShell {
 		commandQueue: make(chan *commandExecution, 10),
 	}
 
-	go shell.processCommands()
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				fmt.Fprintf(os.Stderr, "Panic in shell command processor: %v\n", r)
+				shell.isAlive = false
+				close(shell.commandQueue)
+			}
+		}()
+		shell.processCommands()
+	}()
 
 	go func() {
 		err := cmd.Wait()
 		if err != nil {
+			// Log the error if needed
 		}
 		shell.isAlive = false
 		close(shell.commandQueue)

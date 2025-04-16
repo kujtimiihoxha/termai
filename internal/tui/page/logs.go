@@ -8,6 +8,23 @@ import (
 
 var LogsPage PageID = "logs"
 
+type logsPage struct {
+	table   logs.TableComponent
+	details logs.DetailComponent
+}
+
+func (p *logsPage) Init() tea.Cmd {
+	return nil
+}
+
+func (p *logsPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	return p, nil
+}
+
+func (p *logsPage) View() string {
+	return p.table.View() + "\n" + p.details.View()
+}
+
 func NewLogsPage() tea.Model {
 	return layout.NewBentoLayout(
 		layout.BentoPanes{

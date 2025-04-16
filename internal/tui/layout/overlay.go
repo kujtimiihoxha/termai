@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/kujtimiihoxha/termai/internal/tui/styles"
 	"github.com/kujtimiihoxha/termai/internal/tui/util"
 	"github.com/mattn/go-runewidth"
 	"github.com/muesli/ansi"
@@ -45,13 +46,15 @@ func PlaceOverlay(
 	if shadow {
 		var shadowbg string = ""
 		shadowchar := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#333333")).
+			Background(styles.BackgroundDarker).
+			Foreground(styles.Background).
 			Render("░")
+		bgchar := styles.BaseStyle.Render(" ")
 		for i := 0; i <= fgHeight; i++ {
 			if i == 0 {
-				shadowbg += " " + strings.Repeat(" ", fgWidth) + "\n"
+				shadowbg += bgchar + strings.Repeat(bgchar, fgWidth) + "\n"
 			} else {
-				shadowbg += " " + strings.Repeat(shadowchar, fgWidth) + "\n"
+				shadowbg += bgchar + strings.Repeat(shadowchar, fgWidth) + "\n"
 			}
 		}
 
@@ -158,8 +161,6 @@ func max(a, b int) int {
 	}
 	return b
 }
-
-
 
 type whitespace struct {
 	style termenv.Style

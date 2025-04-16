@@ -7,33 +7,29 @@ import (
 	"os"
 	"strings"
 
-	"github.com/kujtimiihoxha/termai/internal/llm/models"
 	"github.com/kujtimiihoxha/termai/internal/llm/tools"
 	"github.com/kujtimiihoxha/termai/internal/message"
 )
 
-type bedrockProvider struct {
-	childProvider Provider
-	model         models.Model
-	maxTokens     int64
-	systemMessage string
+type bedrockOptions struct {
+	// Bedrock specific options can be added here
 }
 
-func (b *bedrockProvider) SendMessages(ctx context.Context, messages []message.Message, tools []tools.BaseTool) (*ProviderResponse, error) {
-	return b.childProvider.SendMessages(ctx, messages, tools)
+type BedrockOption func(*bedrockOptions)
+
+type bedrockClient struct {
+	providerOptions providerClientOptions
+	options         bedrockOptions
+	childProvider   ProviderClient
 }
 
-func (b *bedrockProvider) StreamResponse(ctx context.Context, messages []message.Message, tools []tools.BaseTool) (<-chan ProviderEvent, error) {
-	return b.childProvider.StreamResponse(ctx, messages, tools)
-}
+type BedrockClient ProviderClient
 
-func NewBedrockProvider(opts ...BedrockOption) (Provider, error) {
-	provider := &bedrockProvider{}
-	for _, opt := range opts {
-		opt(provider)
-	}
+func newBedrockClient(opts providerClientOptions) BedrockClient {
+	bedrockOpts := bedrockOptions{}
+	// Apply bedrock specific options if they are added in the future
 
-	// based on the AWS region prefix the model name with, us, eu, ap, sa, etc.
+	// Get AWS region from environment
 	region := os.Getenv("AWS_REGION")
 	if region == "" {
 		region = os.Getenv("AWS_DEFAULT_REGION")
@@ -43,45 +39,62 @@ func NewBedrockProvider(opts ...BedrockOption) (Provider, error) {
 		region = "us-east-1" // default region
 	}
 	if len(region) < 2 {
-		return nil, errors.New("AWS_REGION or AWS_DEFAULT_REGION environment variable is invalid")
+		return &bedrockClient{
+			providerOptions: opts,
+			options:         bedrockOpts,
+			childProvider:   nil, // Will cause an error when used
+		}
 	}
-	regionPrefix := region[:2]
-	provider.model.APIModel = fmt.Sprintf("%s.%s", regionPrefix, provider.model.APIModel)
 
-	if strings.Contains(string(provider.model.APIModel), "anthropic") {
-		anthropic, err := NewAnthropicProvider(
-			WithAnthropicModel(provider.model),
-			WithAnthropicMaxTokens(provider.maxTokens),
-			WithAnthropicSystemMessage(provider.systemMessage),
-			WithAnthropicBedrock(),
+	// Prefix the model name with region
+	regionPrefix := region[:2]
+	modelName := opts.model.APIModel
+	opts.model.APIModel = fmt.Sprintf("%s.%s", regionPrefix, modelName)
+
+	// Determine which provider to use based on the model
+	if strings.Contains(string(opts.model.APIModel), "anthropic") {
+		// Create Anthropic client with Bedrock configuration
+		anthropicOpts := opts
+		anthropicOpts.anthropicOptions = append(anthropicOpts.anthropicOptions, 
+			WithAnthropicBedrock(true),
 			WithAnthropicDisableCache(),
 		)
-		provider.childProvider = anthropic
-		if err != nil {
-			return nil, err
+		return &bedrockClient{
+			providerOptions: opts,
+			options:         bedrockOpts,
+			childProvider:   newAnthropicClient(anthropicOpts),
 		}
-	} else {
+	}
+
+	// Return client with nil childProvider if model is not supported
+	// This will cause an error when used
+	return &bedrockClient{
+		providerOptions: opts,
+		options:         bedrockOpts,
+		childProvider:   nil,
+	}
+}
+
+func (b *bedrockClient) send(ctx context.Context, messages []message.Message, tools []tools.BaseTool) (*ProviderResponse, error) {
+	if b.childProvider == nil {
 		return nil, errors.New("unsupported model for bedrock provider")
 	}
-	return provider, nil
+	return b.childProvider.send(ctx, messages, tools)
 }
 
-type BedrockOption func(*bedrockProvider)
-
-func WithBedrockSystemMessage(message string) BedrockOption {
-	return func(a *bedrockProvider) {
-		a.systemMessage = message
+func (b *bedrockClient) stream(ctx context.Context, messages []message.Message, tools []tools.BaseTool) <-chan ProviderEvent {
+	eventChan := make(chan ProviderEvent)
+	
+	if b.childProvider == nil {
+		go func() {
+			eventChan <- ProviderEvent{
+				Type:  EventError,
+				Error: errors.New("unsupported model for bedrock provider"),
+			}
+			close(eventChan)
+		}()
+		return eventChan
 	}
-}
-
-func WithBedrockMaxTokens(maxTokens int64) BedrockOption {
-	return func(a *bedrockProvider) {
-		a.maxTokens = maxTokens
-	}
-}
-
-func WithBedrockModel(model models.Model) BedrockOption {
-	return func(a *bedrockProvider) {
-		a.model = model
-	}
+	
+	return b.childProvider.stream(ctx, messages, tools)
 }

@@ -19,6 +19,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/kujtimiihoxha/termai/internal/config"
+	"github.com/kujtimiihoxha/termai/internal/logging"
 	"github.com/sergi/go-diff/diffmatchpatch"
 )
 
@@ -77,6 +79,8 @@ type linePair struct {
 
 // StyleConfig defines styling for diff rendering
 type StyleConfig struct {
+	ShowHeader bool
+	FileNameFg lipgloss.Color
 	// Background colors
 	RemovedLineBg       lipgloss.Color
 	AddedLineBg         lipgloss.Color
@@ -106,11 +110,13 @@ type StyleOption func(*StyleConfig)
 func NewStyleConfig(opts ...StyleOption) StyleConfig {
 	// Default color scheme
 	config := StyleConfig{
+		ShowHeader:          true,
+		FileNameFg:          lipgloss.Color("#fab283"),
 		RemovedLineBg:       lipgloss.Color("#3A3030"),
 		AddedLineBg:         lipgloss.Color("#303A30"),
 		ContextLineBg:       lipgloss.Color("#212121"),
-		HunkLineBg:          lipgloss.Color("#23252D"),
-		HunkLineFg:          lipgloss.Color("#8CA3B4"),
+		HunkLineBg:          lipgloss.Color("#212121"),
+		HunkLineFg:          lipgloss.Color("#a0a0a0"),
 		RemovedFg:           lipgloss.Color("#7C4444"),
 		AddedFg:             lipgloss.Color("#478247"),
 		LineNumberFg:        lipgloss.Color("#888888"),
@@ -132,6 +138,10 @@ func NewStyleConfig(opts ...StyleOption) StyleConfig {
 }
 
 // Style option functions
+func WithFileNameFg(color lipgloss.Color) StyleOption {
+	return func(s *StyleConfig) { s.FileNameFg = color }
+}
+
 func WithRemovedLineBg(color lipgloss.Color) StyleOption {
 	return func(s *StyleConfig) { s.RemovedLineBg = color }
 }
@@ -188,6 +198,10 @@ func WithHunkLineBg(color lipgloss.Color) StyleOption {
 
 func WithHunkLineFg(color lipgloss.Color) StyleOption {
 	return func(s *StyleConfig) { s.HunkLineFg = color }
+}
+
+func WithShowHeader(show bool) StyleOption {
+	return func(s *StyleConfig) { s.ShowHeader = show }
 }
 
 // -------------------------------------------------------------------------
@@ -841,10 +855,12 @@ func RenderSideBySideHunk(fileName string, h Hunk, opts ...SideBySideOption) str
 	// Calculate column width
 	colWidth := config.TotalWidth / 2
 
+	leftWidth := colWidth
+	rightWidth := config.TotalWidth - colWidth
 	var sb strings.Builder
 	for _, p := range pairs {
-		leftStr := renderLeftColumn(fileName, p.left, colWidth, config.Style)
-		rightStr := renderRightColumn(fileName, p.right, colWidth, config.Style)
+		leftStr := renderLeftColumn(fileName, p.left, leftWidth, config.Style)
+		rightStr := renderRightColumn(fileName, p.right, rightWidth, config.Style)
 		sb.WriteString(leftStr + rightStr + "\n")
 	}
 
@@ -861,17 +877,50 @@ func FormatDiff(diffText string, opts ...SideBySideOption) (string, error) {
 	var sb strings.Builder
 	config := NewSideBySideConfig(opts...)
 
-	for i, h := range diffResult.Hunks {
-		if i > 0 {
-			// Render hunk header
-			sb.WriteString(
-				lipgloss.NewStyle().
-					Background(config.Style.HunkLineBg).
-					Foreground(config.Style.HunkLineFg).
-					Width(config.TotalWidth).
-					Render(h.Header) + "\n",
-			)
-		}
+	if config.Style.ShowHeader {
+		removeIcon := lipgloss.NewStyle().
+			Background(config.Style.RemovedLineBg).
+			Foreground(config.Style.RemovedFg).
+			Render("⏹")
+		addIcon := lipgloss.NewStyle().
+			Background(config.Style.AddedLineBg).
+			Foreground(config.Style.AddedFg).
+			Render("⏹")
+
+		fileName := lipgloss.NewStyle().
+			Background(config.Style.ContextLineBg).
+			Foreground(config.Style.FileNameFg).
+			Render(" " + diffResult.OldFile)
+		sb.WriteString(
+			lipgloss.NewStyle().
+				Background(config.Style.ContextLineBg).
+				Padding(0, 1, 0, 1).
+				Foreground(config.Style.FileNameFg).
+				BorderStyle(lipgloss.NormalBorder()).
+				BorderTop(true).
+				BorderBottom(true).
+				BorderForeground(config.Style.FileNameFg).
+				BorderBackground(config.Style.ContextLineBg).
+				Width(config.TotalWidth).
+				Render(
+					lipgloss.JoinHorizontal(lipgloss.Top,
+						removeIcon,
+						addIcon,
+						fileName,
+					),
+				) + "\n",
+		)
+	}
+
+	for _, h := range diffResult.Hunks {
+		// Render hunk header
+		sb.WriteString(
+			lipgloss.NewStyle().
+				Background(config.Style.HunkLineBg).
+				Foreground(config.Style.HunkLineFg).
+				Width(config.TotalWidth).
+				Render(h.Header) + "\n",
+		)
 		sb.WriteString(RenderSideBySideHunk(diffResult.OldFile, h, opts...))
 	}
 
@@ -880,9 +929,15 @@ func FormatDiff(diffText string, opts ...SideBySideOption) (string, error) {
 
 // GenerateDiff creates a unified diff from two file contents
 func GenerateDiff(beforeContent, afterContent, fileName string) (string, int, int) {
+	// remove the cwd prefix and ensure consistent path format
+	// this prevents issues with absolute paths in different environments
+	cwd := config.WorkingDirectory()
+	fileName = strings.TrimPrefix(fileName, cwd)
+	fileName = strings.TrimPrefix(fileName, "/")
 	// Create temporary directory for git operations
-	tempDir, err := os.MkdirTemp("", "git-diff-temp")
+	tempDir, err := os.MkdirTemp("", fmt.Sprintf("git-diff-%d", time.Now().UnixNano()))
 	if err != nil {
+		logging.Error("Failed to create temp directory for git diff", "error", err)
 		return "", 0, 0
 	}
 	defer os.RemoveAll(tempDir)
@@ -890,25 +945,30 @@ func GenerateDiff(beforeContent, afterContent, fileName string) (string, int, in
 	// Initialize git repo
 	repo, err := git.PlainInit(tempDir, false)
 	if err != nil {
+		logging.Error("Failed to initialize git repository", "error", err)
 		return "", 0, 0
 	}
 
 	wt, err := repo.Worktree()
 	if err != nil {
+		logging.Error("Failed to get git worktree", "error", err)
 		return "", 0, 0
 	}
 
 	// Write the "before" content and commit it
 	fullPath := filepath.Join(tempDir, fileName)
 	if err = os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
+		logging.Error("Failed to create directory for file", "error", err)
 		return "", 0, 0
 	}
 	if err = os.WriteFile(fullPath, []byte(beforeContent), 0o644); err != nil {
+		logging.Error("Failed to write before content to file", "error", err)
 		return "", 0, 0
 	}
 
 	_, err = wt.Add(fileName)
 	if err != nil {
+		logging.Error("Failed to add file to git", "error", err)
 		return "", 0, 0
 	}
 
@@ -920,16 +980,19 @@ func GenerateDiff(beforeContent, afterContent, fileName string) (string, int, in
 		},
 	})
 	if err != nil {
+		logging.Error("Failed to commit before content", "error", err)
 		return "", 0, 0
 	}
 
 	// Write the "after" content and commit it
 	if err = os.WriteFile(fullPath, []byte(afterContent), 0o644); err != nil {
+		logging.Error("Failed to write after content to file", "error", err)
 		return "", 0, 0
 	}
 
 	_, err = wt.Add(fileName)
 	if err != nil {
+		logging.Error("Failed to add file to git", "error", err)
 		return "", 0, 0
 	}
 
@@ -941,22 +1004,26 @@ func GenerateDiff(beforeContent, afterContent, fileName string) (string, int, in
 		},
 	})
 	if err != nil {
+		logging.Error("Failed to commit after content", "error", err)
 		return "", 0, 0
 	}
 
 	// Get the diff between the two commits
 	beforeCommitObj, err := repo.CommitObject(beforeCommit)
 	if err != nil {
+		logging.Error("Failed to get before commit object", "error", err)
 		return "", 0, 0
 	}
 
 	afterCommitObj, err := repo.CommitObject(afterCommit)
 	if err != nil {
+		logging.Error("Failed to get after commit object", "error", err)
 		return "", 0, 0
 	}
 
 	patch, err := beforeCommitObj.Patch(afterCommitObj)
 	if err != nil {
+		logging.Error("Failed to create git diff patch", "error", err)
 		return "", 0, 0
 	}
 

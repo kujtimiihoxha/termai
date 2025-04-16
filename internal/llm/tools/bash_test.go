@@ -8,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kujtimiihoxha/termai/internal/permission"
-	"github.com/kujtimiihoxha/termai/internal/pubsub"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -338,34 +336,5 @@ func TestCountLines(t *testing.T) {
 			result := countLines(tc.input)
 			assert.Equal(t, tc.expected, result)
 		})
-	}
-}
-
-// Mock permission service for testing
-type mockPermissionService struct {
-	*pubsub.Broker[permission.PermissionRequest]
-	allow bool
-}
-
-func (m *mockPermissionService) GrantPersistant(permission permission.PermissionRequest) {
-	// Not needed for tests
-}
-
-func (m *mockPermissionService) Grant(permission permission.PermissionRequest) {
-	// Not needed for tests
-}
-
-func (m *mockPermissionService) Deny(permission permission.PermissionRequest) {
-	// Not needed for tests
-}
-
-func (m *mockPermissionService) Request(opts permission.CreatePermissionRequest) bool {
-	return m.allow
-}
-
-func newMockPermissionService(allow bool) permission.Service {
-	return &mockPermissionService{
-		Broker: pubsub.NewBroker[permission.PermissionRequest](),
-		allow:  allow,
 	}
 }

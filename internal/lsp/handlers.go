@@ -88,7 +88,7 @@ func HandleServerMessage(params json.RawMessage) {
 		Message string `json:"message"`
 	}
 	if err := json.Unmarshal(params, &msg); err == nil {
-		if cnf.Debug {
+		if cnf.DebugLSP {
 			logging.Debug("Server message", "type", msg.Type, "message", msg.Message)
 		}
 	}

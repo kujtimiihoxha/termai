@@ -18,7 +18,7 @@ type SourcegraphParams struct {
 	Timeout       int    `json:"timeout,omitempty"`
 }
 
-type SourcegraphMetadata struct {
+type SourcegraphResponseMetadata struct {
 	NumberOfMatches int  `json:"number_of_matches"`
 	Truncated       bool `json:"truncated"`
 }

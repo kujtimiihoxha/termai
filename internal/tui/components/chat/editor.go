@@ -5,14 +5,17 @@ import (
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/kujtimiihoxha/termai/internal/app"
+	"github.com/kujtimiihoxha/termai/internal/session"
 	"github.com/kujtimiihoxha/termai/internal/tui/layout"
 	"github.com/kujtimiihoxha/termai/internal/tui/styles"
 	"github.com/kujtimiihoxha/termai/internal/tui/util"
 )
 
 type editorCmp struct {
-	textarea     textarea.Model
-	agentWorking bool
+	app      *app.App
+	session  session.Session
+	textarea textarea.Model
 }
 
 type focusedEditorKeyMaps struct {
@@ -32,7 +35,7 @@ var focusedKeyMaps = focusedEditorKeyMaps{
 	),
 	Blur: key.NewBinding(
 		key.WithKeys("esc"),
-		key.WithHelp("esc", "blur editor"),
+		key.WithHelp("esc", "focus messages"),
 	),
 }
 
@@ -52,7 +55,7 @@ func (m *editorCmp) Init() tea.Cmd {
 }
 
 func (m *editorCmp) send() tea.Cmd {
-	if m.agentWorking {
+	if m.app.CoderAgent.IsSessionBusy(m.session.ID) {
 		return util.ReportWarn("Agent is working, please wait...")
 	}
 
@@ -66,7 +69,6 @@ func (m *editorCmp) send() tea.Cmd {
 		util.CmdHandler(SendMsg{
 			Text: value,
 		}),
-		util.CmdHandler(AgentWorkingMsg(true)),
 		util.CmdHandler(EditorFocusMsg(false)),
 	)
 }
@@ -74,8 +76,11 @@ func (m *editorCmp) send() tea.Cmd {
 func (m *editorCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
-	case AgentWorkingMsg:
-		m.agentWorking = bool(msg)
+	case SessionSelectedMsg:
+		if msg.ID != m.session.ID {
+			m.session = msg
+		}
+		return m, nil
 	case tea.KeyMsg:
 		// if the key does not match any binding, return
 		if m.textarea.Focused() && key.Matches(msg, focusedKeyMaps.Send) {
@@ -122,7 +127,7 @@ func (m *editorCmp) BindingKeys() []key.Binding {
 	return bindings
 }
 
-func NewEditorCmp() tea.Model {
+func NewEditorCmp(app *app.App) tea.Model {
 	ti := textarea.New()
 	ti.Prompt = " "
 	ti.ShowLineNumbers = false
@@ -138,6 +143,7 @@ func NewEditorCmp() tea.Model {
 	ti.CharLimit = -1
 	ti.Focus()
 	return &editorCmp{
+		app:      app,
 		textarea: ti,
 	}
 }

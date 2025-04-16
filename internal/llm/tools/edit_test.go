@@ -14,7 +14,7 @@ import (
 )
 
 func TestEditTool_Info(t *testing.T) {
-	tool := NewEditTool(make(map[string]*lsp.Client), newMockPermissionService(true))
+	tool := NewEditTool(make(map[string]*lsp.Client), newMockPermissionService(true), newMockFileHistoryService())
 	info := tool.Info()
 
 	assert.Equal(t, EditToolName, info.Name)
@@ -34,7 +34,7 @@ func TestEditTool_Run(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	t.Run("creates a new file successfully", func(t *testing.T) {
-		tool := NewEditTool(make(map[string]*lsp.Client), newMockPermissionService(true))
+		tool := NewEditTool(make(map[string]*lsp.Client), newMockPermissionService(true), newMockFileHistoryService())
 
 		filePath := filepath.Join(tempDir, "new_file.txt")
 		content := "This is a test content"
@@ -64,7 +64,7 @@ func TestEditTool_Run(t *testing.T) {
 	})
 
 	t.Run("creates file with nested directories", func(t *testing.T) {
-		tool := NewEditTool(make(map[string]*lsp.Client), newMockPermissionService(true))
+		tool := NewEditTool(make(map[string]*lsp.Client), newMockPermissionService(true), newMockFileHistoryService())
 
 		filePath := filepath.Join(tempDir, "nested/dirs/new_file.txt")
 		content := "Content in nested directory"
@@ -94,7 +94,7 @@ func TestEditTool_Run(t *testing.T) {
 	})
 
 	t.Run("fails to create file that already exists", func(t *testing.T) {
-		tool := NewEditTool(make(map[string]*lsp.Client), newMockPermissionService(true))
+		tool := NewEditTool(make(map[string]*lsp.Client), newMockPermissionService(true), newMockFileHistoryService())
 
 		// Create a file first
 		filePath := filepath.Join(tempDir, "existing_file.txt")
@@ -123,7 +123,7 @@ func TestEditTool_Run(t *testing.T) {
 	})
 
 	t.Run("fails to create file when path is a directory", func(t *testing.T) {
-		tool := NewEditTool(make(map[string]*lsp.Client), newMockPermissionService(true))
+		tool := NewEditTool(make(map[string]*lsp.Client), newMockPermissionService(true), newMockFileHistoryService())
 
 		// Create a directory
 		dirPath := filepath.Join(tempDir, "test_dir")
@@ -151,7 +151,7 @@ func TestEditTool_Run(t *testing.T) {
 	})
 
 	t.Run("replaces content successfully", func(t *testing.T) {
-		tool := NewEditTool(make(map[string]*lsp.Client), newMockPermissionService(true))
+		tool := NewEditTool(make(map[string]*lsp.Client), newMockPermissionService(true), newMockFileHistoryService())
 
 		// Create a file first
 		filePath := filepath.Join(tempDir, "replace_content.txt")
@@ -191,7 +191,7 @@ func TestEditTool_Run(t *testing.T) {
 	})
 
 	t.Run("deletes content successfully", func(t *testing.T) {
-		tool := NewEditTool(make(map[string]*lsp.Client), newMockPermissionService(true))
+		tool := NewEditTool(make(map[string]*lsp.Client), newMockPermissionService(true), newMockFileHistoryService())
 
 		// Create a file first
 		filePath := filepath.Join(tempDir, "delete_content.txt")
@@ -230,7 +230,7 @@ func TestEditTool_Run(t *testing.T) {
 	})
 
 	t.Run("handles invalid parameters", func(t *testing.T) {
-		tool := NewEditTool(make(map[string]*lsp.Client), newMockPermissionService(true))
+		tool := NewEditTool(make(map[string]*lsp.Client), newMockPermissionService(true), newMockFileHistoryService())
 
 		call := ToolCall{
 			Name:  EditToolName,
@@ -243,7 +243,7 @@ func TestEditTool_Run(t *testing.T) {
 	})
 
 	t.Run("handles missing file_path", func(t *testing.T) {
-		tool := NewEditTool(make(map[string]*lsp.Client), newMockPermissionService(true))
+		tool := NewEditTool(make(map[string]*lsp.Client), newMockPermissionService(true), newMockFileHistoryService())
 
 		params := EditParams{
 			FilePath:  "",
@@ -265,7 +265,7 @@ func TestEditTool_Run(t *testing.T) {
 	})
 
 	t.Run("handles file not found", func(t *testing.T) {
-		tool := NewEditTool(make(map[string]*lsp.Client), newMockPermissionService(true))
+		tool := NewEditTool(make(map[string]*lsp.Client), newMockPermissionService(true), newMockFileHistoryService())
 
 		filePath := filepath.Join(tempDir, "non_existent_file.txt")
 		params := EditParams{
@@ -288,7 +288,7 @@ func TestEditTool_Run(t *testing.T) {
 	})
 
 	t.Run("handles old_string not found in file", func(t *testing.T) {
-		tool := NewEditTool(make(map[string]*lsp.Client), newMockPermissionService(true))
+		tool := NewEditTool(make(map[string]*lsp.Client), newMockPermissionService(true), newMockFileHistoryService())
 
 		// Create a file first
 		filePath := filepath.Join(tempDir, "content_not_found.txt")
@@ -320,7 +320,7 @@ func TestEditTool_Run(t *testing.T) {
 	})
 
 	t.Run("handles multiple occurrences of old_string", func(t *testing.T) {
-		tool := NewEditTool(make(map[string]*lsp.Client), newMockPermissionService(true))
+		tool := NewEditTool(make(map[string]*lsp.Client), newMockPermissionService(true), newMockFileHistoryService())
 
 		// Create a file with duplicate content
 		filePath := filepath.Join(tempDir, "duplicate_content.txt")
@@ -352,7 +352,7 @@ func TestEditTool_Run(t *testing.T) {
 	})
 
 	t.Run("handles file modified since last read", func(t *testing.T) {
-		tool := NewEditTool(make(map[string]*lsp.Client), newMockPermissionService(true))
+		tool := NewEditTool(make(map[string]*lsp.Client), newMockPermissionService(true), newMockFileHistoryService())
 
 		// Create a file
 		filePath := filepath.Join(tempDir, "modified_file.txt")
@@ -394,7 +394,7 @@ func TestEditTool_Run(t *testing.T) {
 	})
 
 	t.Run("handles file not read before editing", func(t *testing.T) {
-		tool := NewEditTool(make(map[string]*lsp.Client), newMockPermissionService(true))
+		tool := NewEditTool(make(map[string]*lsp.Client), newMockPermissionService(true), newMockFileHistoryService())
 
 		// Create a file
 		filePath := filepath.Join(tempDir, "not_read_file.txt")
@@ -423,7 +423,7 @@ func TestEditTool_Run(t *testing.T) {
 	})
 
 	t.Run("handles permission denied", func(t *testing.T) {
-		tool := NewEditTool(make(map[string]*lsp.Client), newMockPermissionService(false))
+		tool := NewEditTool(make(map[string]*lsp.Client), newMockPermissionService(false), newMockFileHistoryService())
 
 		// Create a file
 		filePath := filepath.Join(tempDir, "permission_denied.txt")

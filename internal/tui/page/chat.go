@@ -37,7 +37,6 @@ var keyMap = ChatKeyMap{
 }
 
 func (p *chatPage) Init() tea.Cmd {
-	// TODO: remove
 	cmds := []tea.Cmd{
 		p.layout.Init(),
 	}
@@ -48,9 +47,7 @@ func (p *chatPage) Init() tea.Cmd {
 		cmd := p.setSidebar()
 		cmds = append(cmds, util.CmdHandler(chat.SessionSelectedMsg(p.session)), cmd)
 	}
-	return tea.Batch(
-		cmds...,
-	)
+	return tea.Batch(cmds...)
 }
 
 func (p *chatPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -68,6 +65,13 @@ func (p *chatPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			p.session = session.Session{}
 			p.clearSidebar()
 			return p, util.CmdHandler(chat.SessionClearedMsg{})
+		case key.Matches(msg, keyMap.Cancel):
+			if p.session.ID != "" {
+				// Cancel the current session's generation process
+				// This allows users to interrupt long-running operations
+				p.app.CoderAgent.Cancel(p.session.ID)
+				return p, nil
+			}
 		}
 	}
 	u, cmd := p.layout.Update(msg)
@@ -80,7 +84,7 @@ func (p *chatPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (p *chatPage) setSidebar() tea.Cmd {
 	sidebarContainer := layout.NewContainer(
-		chat.NewSidebarCmp(p.session),
+		chat.NewSidebarCmp(p.session, p.app.History),
 		layout.WithPadding(1, 1, 1, 1),
 	)
 	p.layout.SetRightPanel(sidebarContainer)
@@ -111,12 +115,26 @@ func (p *chatPage) sendMessage(text string) tea.Cmd {
 		cmds = append(cmds, util.CmdHandler(chat.SessionSelectedMsg(session)))
 	}
 
-	p.app.CoderAgent.Generate(context.Background(), p.session.ID, text)
+	p.app.CoderAgent.Run(context.Background(), p.session.ID, text)
 	return tea.Batch(cmds...)
+}
+
+func (p *chatPage) SetSize(width, height int) {
+	p.layout.SetSize(width, height)
+}
+
+func (p *chatPage) GetSize() (int, int) {
+	return p.layout.GetSize()
 }
 
 func (p *chatPage) View() string {
 	return p.layout.View()
+}
+
+func (p *chatPage) BindingKeys() []key.Binding {
+	bindings := layout.KeyMapToSlice(keyMap)
+	bindings = append(bindings, p.layout.BindingKeys()...)
+	return bindings
 }
 
 func NewChatPage(app *app.App) tea.Model {
@@ -126,7 +144,7 @@ func NewChatPage(app *app.App) tea.Model {
 	)
 
 	editorContainer := layout.NewContainer(
-		chat.NewEditorCmp(),
+		chat.NewEditorCmp(app),
 		layout.WithBorder(true, false, false, false),
 	)
 	return &chatPage{

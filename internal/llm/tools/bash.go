@@ -23,7 +23,8 @@ type BashPermissionsParams struct {
 }
 
 type BashResponseMetadata struct {
-	Took int64 `json:"took"`
+	StartTime int64 `json:"start_time"`
+	EndTime   int64 `json:"end_time"`
 }
 type bashTool struct {
 	permissions permission.Service
@@ -282,7 +283,6 @@ func (b *bashTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error)
 	if err != nil {
 		return ToolResponse{}, fmt.Errorf("error executing command: %w", err)
 	}
-	took := time.Since(startTime).Milliseconds()
 
 	stdout = truncateOutput(stdout)
 	stderr = truncateOutput(stderr)
@@ -311,7 +311,8 @@ func (b *bashTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error)
 	}
 
 	metadata := BashResponseMetadata{
-		Took: took,
+		StartTime: startTime.UnixMilli(),
+		EndTime:   time.Now().UnixMilli(),
 	}
 	if stdout == "" {
 		return WithResponseMetadata(NewTextResponse("no output"), metadata), nil

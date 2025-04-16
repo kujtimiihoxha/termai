@@ -63,7 +63,7 @@ type GlobParams struct {
 	Path    string `json:"path"`
 }
 
-type GlobMetadata struct {
+type GlobResponseMetadata struct {
 	NumberOfFiles int  `json:"number_of_files"`
 	Truncated     bool `json:"truncated"`
 }
@@ -124,7 +124,7 @@ func (g *globTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error)
 
 	return WithResponseMetadata(
 		NewTextResponse(output),
-		GlobMetadata{
+		GlobResponseMetadata{
 			NumberOfFiles: len(files),
 			Truncated:     truncated,
 		},

@@ -97,7 +97,9 @@ func (q *Queries) GetFile(ctx context.Context, id string) (File, error) {
 const getFileByPathAndSession = `-- name: GetFileByPathAndSession :one
 SELECT id, session_id, path, content, version, created_at, updated_at
 FROM files
-WHERE path = ? AND session_id = ? LIMIT 1
+WHERE path = ? AND session_id = ?
+ORDER BY created_at DESC
+LIMIT 1
 `
 
 type GetFileByPathAndSessionParams struct {

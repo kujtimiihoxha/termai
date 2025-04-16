@@ -31,12 +31,18 @@ type MCPServer struct {
 	Headers map[string]string `json:"headers"`
 }
 
-// Model defines configuration for different LLM models and their token limits.
-type Model struct {
-	Coder          models.ModelID `json:"coder"`
-	CoderMaxTokens int64          `json:"coderMaxTokens"`
-	Task           models.ModelID `json:"task"`
-	TaskMaxTokens  int64          `json:"taskMaxTokens"`
+type AgentName string
+
+const (
+	AgentCoder AgentName = "coder"
+	AgentTask  AgentName = "task"
+	AgentTitle AgentName = "title"
+)
+
+// Agent defines configuration for different LLM models and their token limits.
+type Agent struct {
+	Model     models.ModelID `json:"model"`
+	MaxTokens int64          `json:"maxTokens"`
 }
 
 // Provider defines configuration for an LLM provider.
@@ -65,8 +71,9 @@ type Config struct {
 	MCPServers map[string]MCPServer              `json:"mcpServers,omitempty"`
 	Providers  map[models.ModelProvider]Provider `json:"providers,omitempty"`
 	LSP        map[string]LSPConfig              `json:"lsp,omitempty"`
-	Model      Model                             `json:"model"`
+	Agents     map[AgentName]Agent               `json:"agents"`
 	Debug      bool                              `json:"debug,omitempty"`
+	DebugLSP   bool                              `json:"debugLSP,omitempty"`
 }
 
 // Application constants
@@ -118,11 +125,42 @@ func Load(workingDir string, debug bool) (*Config, error) {
 	if cfg.Debug {
 		defaultLevel = slog.LevelDebug
 	}
-	// Configure logger
-	logger := slog.New(slog.NewTextHandler(logging.NewWriter(), &slog.HandlerOptions{
-		Level: defaultLevel,
-	}))
-	slog.SetDefault(logger)
+	// if we are in debug mode make the writer a file
+	if cfg.Debug {
+		loggingFile := fmt.Sprintf("%s/%s", cfg.Data.Directory, "debug.log")
+
+		// if file does not exist create it
+		if _, err := os.Stat(loggingFile); os.IsNotExist(err) {
+			if err := os.MkdirAll(cfg.Data.Directory, 0o755); err != nil {
+				return cfg, fmt.Errorf("failed to create directory: %w", err)
+			}
+			if _, err := os.Create(loggingFile); err != nil {
+				return cfg, fmt.Errorf("failed to create log file: %w", err)
+			}
+		}
+
+		sloggingFileWriter, err := os.OpenFile(loggingFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o666)
+		if err != nil {
+			return cfg, fmt.Errorf("failed to open log file: %w", err)
+		}
+		// Configure logger
+		logger := slog.New(slog.NewTextHandler(sloggingFileWriter, &slog.HandlerOptions{
+			Level: defaultLevel,
+		}))
+		slog.SetDefault(logger)
+	} else {
+		// Configure logger
+		logger := slog.New(slog.NewTextHandler(logging.NewWriter(), &slog.HandlerOptions{
+			Level: defaultLevel,
+		}))
+		slog.SetDefault(logger)
+	}
+
+	// Override the max tokens for title agent
+	cfg.Agents[AgentTitle] = Agent{
+		Model:     cfg.Agents[AgentTitle].Model,
+		MaxTokens: 80,
+	}
 	return cfg, nil
 }
 
@@ -159,44 +197,50 @@ func setProviderDefaults() {
 	// Groq configuration
 	if apiKey := os.Getenv("GROQ_API_KEY"); apiKey != "" {
 		viper.SetDefault("providers.groq.apiKey", apiKey)
-		viper.SetDefault("model.coder", models.QWENQwq)
-		viper.SetDefault("model.coderMaxTokens", defaultMaxTokens)
-		viper.SetDefault("model.task", models.QWENQwq)
-		viper.SetDefault("model.taskMaxTokens", defaultMaxTokens)
+		viper.SetDefault("agents.coder.model", models.QWENQwq)
+		viper.SetDefault("agents.coder.maxTokens", defaultMaxTokens)
+		viper.SetDefault("agents.task.model", models.QWENQwq)
+		viper.SetDefault("agents.task.maxTokens", defaultMaxTokens)
+		viper.SetDefault("agents.title.model", models.QWENQwq)
 	}
 
 	// Google Gemini configuration
 	if apiKey := os.Getenv("GEMINI_API_KEY"); apiKey != "" {
 		viper.SetDefault("providers.gemini.apiKey", apiKey)
-		viper.SetDefault("model.coder", models.GRMINI20Flash)
-		viper.SetDefault("model.coderMaxTokens", defaultMaxTokens)
-		viper.SetDefault("model.task", models.GRMINI20Flash)
-		viper.SetDefault("model.taskMaxTokens", defaultMaxTokens)
+		viper.SetDefault("agents.coder.model", models.GRMINI20Flash)
+		viper.SetDefault("agents.coder.maxTokens", defaultMaxTokens)
+		viper.SetDefault("agents.task.model", models.GRMINI20Flash)
+		viper.SetDefault("agents.task.maxTokens", defaultMaxTokens)
+		viper.SetDefault("agents.title.model", models.GRMINI20Flash)
 	}
 
 	// OpenAI configuration
 	if apiKey := os.Getenv("OPENAI_API_KEY"); apiKey != "" {
 		viper.SetDefault("providers.openai.apiKey", apiKey)
-		viper.SetDefault("model.coder", models.GPT4o)
-		viper.SetDefault("model.coderMaxTokens", defaultMaxTokens)
-		viper.SetDefault("model.task", models.GPT4o)
-		viper.SetDefault("model.taskMaxTokens", defaultMaxTokens)
+		viper.SetDefault("agents.coder.model", models.GPT4o)
+		viper.SetDefault("agents.coder.maxTokens", defaultMaxTokens)
+		viper.SetDefault("agents.task.model", models.GPT4o)
+		viper.SetDefault("agents.task.maxTokens", defaultMaxTokens)
+		viper.SetDefault("agents.title.model", models.GPT4o)
+
 	}
 
 	// Anthropic configuration
 	if apiKey := os.Getenv("ANTHROPIC_API_KEY"); apiKey != "" {
 		viper.SetDefault("providers.anthropic.apiKey", apiKey)
-		viper.SetDefault("model.coder", models.Claude37Sonnet)
-		viper.SetDefault("model.coderMaxTokens", defaultMaxTokens)
-		viper.SetDefault("model.task", models.Claude37Sonnet)
-		viper.SetDefault("model.taskMaxTokens", defaultMaxTokens)
+		viper.SetDefault("agents.coder.model", models.Claude37Sonnet)
+		viper.SetDefault("agents.coder.maxTokens", defaultMaxTokens)
+		viper.SetDefault("agents.task.model", models.Claude37Sonnet)
+		viper.SetDefault("agents.task.maxTokens", defaultMaxTokens)
+		viper.SetDefault("agents.title.model", models.Claude37Sonnet)
 	}
 
 	if hasAWSCredentials() {
-		viper.SetDefault("model.coder", models.BedrockClaude37Sonnet)
-		viper.SetDefault("model.coderMaxTokens", defaultMaxTokens)
-		viper.SetDefault("model.task", models.BedrockClaude37Sonnet)
-		viper.SetDefault("model.taskMaxTokens", defaultMaxTokens)
+		viper.SetDefault("agents.coder.model", models.BedrockClaude37Sonnet)
+		viper.SetDefault("agents.coder.maxTokens", defaultMaxTokens)
+		viper.SetDefault("agents.task.model", models.BedrockClaude37Sonnet)
+		viper.SetDefault("agents.task.maxTokens", defaultMaxTokens)
+		viper.SetDefault("agents.title.model", models.BedrockClaude37Sonnet)
 	}
 }
 

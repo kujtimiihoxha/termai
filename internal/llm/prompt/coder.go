@@ -9,11 +9,22 @@ import (
 	"time"
 
 	"github.com/kujtimiihoxha/termai/internal/config"
+	"github.com/kujtimiihoxha/termai/internal/llm/models"
 	"github.com/kujtimiihoxha/termai/internal/llm/tools"
 )
 
-func CoderOpenAISystemPrompt() string {
-	basePrompt := `You are termAI, an autonomous CLI-based software engineer. Your job is to reduce user effort by proactively reasoning, inferring context, and solving software engineering tasks end-to-end with minimal prompting.
+func CoderPrompt(provider models.ModelProvider) string {
+	basePrompt := baseAnthropicCoderPrompt
+	switch provider {
+	case models.ProviderOpenAI:
+		basePrompt = baseOpenAICoderPrompt
+	}
+	envInfo := getEnvironmentInfo()
+
+	return fmt.Sprintf("%s\n\n%s\n%s", basePrompt, envInfo, lspInformation())
+}
+
+const baseOpenAICoderPrompt = `You are termAI, an autonomous CLI-based software engineer. Your job is to reduce user effort by proactively reasoning, inferring context, and solving software engineering tasks end-to-end with minimal prompting.
 
 # Your mindset
 Act like a competent, efficient software engineer who is familiar with large codebases. You should:
@@ -65,13 +76,7 @@ assistant: [searches repo for references, returns file paths and lines]
 
 Never commit changes unless the user explicitly asks you to.`
 
-	envInfo := getEnvironmentInfo()
-
-	return fmt.Sprintf("%s\n\n%s\n%s", basePrompt, envInfo, lspInformation())
-}
-
-func CoderAnthropicSystemPrompt() string {
-	basePrompt := `You are termAI, an interactive CLI tool that helps users with software engineering tasks. Use the instructions below and the tools available to you to assist the user.
+const baseAnthropicCoderPrompt = `You are termAI, an interactive CLI tool that helps users with software engineering tasks. Use the instructions below and the tools available to you to assist the user.
 
 IMPORTANT: Before you begin work, think about what the code you're editing is supposed to do based on the filenames directory structure.
 
@@ -165,11 +170,6 @@ NEVER commit changes unless the user explicitly asks you to. It is VERY IMPORTAN
 - If you intend to call multiple tools and there are no dependencies between the calls, make all of the independent calls in the same function_calls block.
 
 You MUST answer concisely with fewer than 4 lines of text (not including tool use or code generation), unless user asks for detail.`
-
-	envInfo := getEnvironmentInfo()
-
-	return fmt.Sprintf("%s\n\n%s\n%s", basePrompt, envInfo, lspInformation())
-}
 
 func getEnvironmentInfo() string {
 	cwd := config.WorkingDirectory()

@@ -5,7 +5,7 @@ import (
 	"sync"
 )
 
-const bufferSize = 1024 * 1024
+const bufferSize = 1024
 
 type Logger interface {
 	Debug(msg string, args ...any)

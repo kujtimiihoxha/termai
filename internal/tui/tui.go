@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"context"
-
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -12,47 +10,41 @@ import (
 	"github.com/kujtimiihoxha/termai/internal/pubsub"
 	"github.com/kujtimiihoxha/termai/internal/tui/components/core"
 	"github.com/kujtimiihoxha/termai/internal/tui/components/dialog"
-	"github.com/kujtimiihoxha/termai/internal/tui/components/repl"
 	"github.com/kujtimiihoxha/termai/internal/tui/layout"
 	"github.com/kujtimiihoxha/termai/internal/tui/page"
 	"github.com/kujtimiihoxha/termai/internal/tui/util"
-	"github.com/kujtimiihoxha/vimtea"
 )
 
 type keyMap struct {
-	Logs   key.Binding
-	Return key.Binding
-	Back   key.Binding
-	Quit   key.Binding
-	Help   key.Binding
+	Logs key.Binding
+	Quit key.Binding
+	Help key.Binding
 }
 
 var keys = keyMap{
 	Logs: key.NewBinding(
-		key.WithKeys("L"),
-		key.WithHelp("L", "logs"),
+		key.WithKeys("ctrl+l"),
+		key.WithHelp("ctrl+L", "logs"),
 	),
-	Return: key.NewBinding(
-		key.WithKeys("esc"),
-		key.WithHelp("esc", "close"),
-	),
-	Back: key.NewBinding(
-		key.WithKeys("backspace"),
-		key.WithHelp("backspace", "back"),
-	),
+
 	Quit: key.NewBinding(
-		key.WithKeys("ctrl+c", "q"),
-		key.WithHelp("ctrl+c/q", "quit"),
+		key.WithKeys("ctrl+c"),
+		key.WithHelp("ctrl+c", "quit"),
 	),
 	Help: key.NewBinding(
-		key.WithKeys("?"),
-		key.WithHelp("?", "toggle help"),
+		key.WithKeys("ctrl+_"),
+		key.WithHelp("ctrl+?", "toggle help"),
 	),
 }
 
-var replKeyMap = key.NewBinding(
-	key.WithKeys("N"),
-	key.WithHelp("N", "new session"),
+var returnKey = key.NewBinding(
+	key.WithKeys("esc"),
+	key.WithHelp("esc", "close"),
+)
+
+var logsKeyReturnKey = key.NewBinding(
+	key.WithKeys("backspace"),
+	key.WithHelp("backspace", "go back"),
 )
 
 type appModel struct {
@@ -62,18 +54,30 @@ type appModel struct {
 	pages         map[page.PageID]tea.Model
 	loadedPages   map[page.PageID]bool
 	status        tea.Model
-	help          core.HelpCmp
-	dialog        core.DialogCmp
 	app           *app.App
-	dialogVisible bool
-	editorMode    vimtea.EditorMode
-	showHelp      bool
+
+	showPermissions bool
+	permissions     dialog.PermissionDialogCmp
+
+	showHelp bool
+	help     dialog.HelpCmp
+
+	showQuit bool
+	quit     dialog.QuitDialog
 }
 
 func (a appModel) Init() tea.Cmd {
+	var cmds []tea.Cmd
 	cmd := a.pages[a.currentPage].Init()
 	a.loadedPages[a.currentPage] = true
-	return cmd
+	cmds = append(cmds, cmd)
+	cmd = a.status.Init()
+	cmds = append(cmds, cmd)
+	cmd = a.quit.Init()
+	cmds = append(cmds, cmd)
+	cmd = a.help.Init()
+	cmds = append(cmds, cmd)
+	return tea.Batch(cmds...)
 }
 
 func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -81,22 +85,20 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		var cmds []tea.Cmd
 		msg.Height -= 1 // Make space for the status bar
 		a.width, a.height = msg.Width, msg.Height
 
 		a.status, _ = a.status.Update(msg)
-
-		uh, _ := a.help.Update(msg)
-		a.help = uh.(core.HelpCmp)
-
-		p, cmd := a.pages[a.currentPage].Update(msg)
+		a.pages[a.currentPage], cmd = a.pages[a.currentPage].Update(msg)
 		cmds = append(cmds, cmd)
-		a.pages[a.currentPage] = p
 
-		d, cmd := a.dialog.Update(msg)
-		cmds = append(cmds, cmd)
-		a.dialog = d.(core.DialogCmp)
+		prm, permCmd := a.permissions.Update(msg)
+		a.permissions = prm.(dialog.PermissionDialogCmp)
+		cmds = append(cmds, permCmd)
+
+		help, helpCmd := a.help.Update(msg)
+		a.help = help.(dialog.HelpCmp)
+		cmds = append(cmds, helpCmd)
 
 		return a, tea.Batch(cmds...)
 
@@ -141,7 +143,9 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Permission
 	case pubsub.Event[permission.PermissionRequest]:
-		return a, dialog.NewPermissionDialogCmd(msg.Payload)
+		a.showPermissions = true
+		a.permissions.SetPermissions(msg.Payload)
+		return a, nil
 	case dialog.PermissionResponseMsg:
 		switch msg.Action {
 		case dialog.PermissionAllow:
@@ -151,89 +155,69 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case dialog.PermissionDeny:
 			a.app.Permissions.Deny(msg.Permission)
 		}
-
-	// Dialog
-	case core.DialogMsg:
-		d, cmd := a.dialog.Update(msg)
-		a.dialog = d.(core.DialogCmp)
-		a.dialogVisible = true
-		return a, cmd
-	case core.DialogCloseMsg:
-		d, cmd := a.dialog.Update(msg)
-		a.dialog = d.(core.DialogCmp)
-		a.dialogVisible = false
-		return a, cmd
-
-	// Editor
-	case vimtea.EditorModeMsg:
-		a.editorMode = msg.Mode
+		a.showPermissions = false
+		return a, nil
 
 	case page.PageChangeMsg:
 		return a, a.moveToPage(msg.ID)
+
+	case dialog.CloseQuitMsg:
+		a.showQuit = false
+		return a, nil
+
 	case tea.KeyMsg:
-		if a.editorMode == vimtea.ModeNormal {
-			switch {
-			case key.Matches(msg, keys.Quit):
-				return a, dialog.NewQuitDialogCmd()
-			case key.Matches(msg, keys.Back):
-				if a.previousPage != "" {
-					return a, a.moveToPage(a.previousPage)
-				}
-			case key.Matches(msg, keys.Return):
-				if a.showHelp {
-					a.ToggleHelp()
-					return a, nil
-				}
-			case key.Matches(msg, replKeyMap):
-				if a.currentPage == page.ReplPage {
-					sessions, err := a.app.Sessions.List(context.Background())
-					if err != nil {
-						return a, util.CmdHandler(util.ReportError(err))
-					}
-					lastSession := sessions[0]
-					if lastSession.MessageCount == 0 {
-						return a, util.CmdHandler(repl.SelectedSessionMsg{SessionID: lastSession.ID})
-					}
-					s, err := a.app.Sessions.Create(context.Background(), "New Session")
-					if err != nil {
-						return a, util.CmdHandler(util.ReportError(err))
-					}
-					return a, util.CmdHandler(repl.SelectedSessionMsg{SessionID: s.ID})
-				}
-			// case key.Matches(msg, keys.Logs):
-			// 	return a, a.moveToPage(page.LogsPage)
-			case msg.String() == "O":
-				return a, a.moveToPage(page.ReplPage)
-			case key.Matches(msg, keys.Help):
-				a.ToggleHelp()
+		switch {
+		case key.Matches(msg, keys.Quit):
+			a.showQuit = !a.showQuit
+			if a.showHelp {
+				a.showHelp = false
+			}
+			return a, nil
+		case key.Matches(msg, logsKeyReturnKey):
+			if a.currentPage == page.LogsPage {
+				return a, a.moveToPage(page.ChatPage)
+			}
+		case key.Matches(msg, returnKey):
+			if a.showQuit {
+				a.showQuit = !a.showQuit
 				return a, nil
 			}
+			if a.showHelp {
+				a.showHelp = !a.showHelp
+				return a, nil
+			}
+		case key.Matches(msg, keys.Logs):
+			return a, a.moveToPage(page.LogsPage)
+		case key.Matches(msg, keys.Help):
+			if a.showQuit {
+				return a, nil
+			}
+			a.showHelp = !a.showHelp
+			return a, nil
 		}
 	}
 
-	if a.dialogVisible {
-		d, cmd := a.dialog.Update(msg)
-		a.dialog = d.(core.DialogCmp)
-		cmds = append(cmds, cmd)
-		return a, tea.Batch(cmds...)
+	if a.showQuit {
+		q, quitCmd := a.quit.Update(msg)
+		a.quit = q.(dialog.QuitDialog)
+		cmds = append(cmds, quitCmd)
+		// Only block key messages send all other messages down
+		if _, ok := msg.(tea.KeyMsg); ok {
+			return a, tea.Batch(cmds...)
+		}
+	}
+	if a.showPermissions {
+		d, permissionsCmd := a.permissions.Update(msg)
+		a.permissions = d.(dialog.PermissionDialogCmp)
+		cmds = append(cmds, permissionsCmd)
+		// Only block key messages send all other messages down
+		if _, ok := msg.(tea.KeyMsg); ok {
+			return a, tea.Batch(cmds...)
+		}
 	}
 	a.pages[a.currentPage], cmd = a.pages[a.currentPage].Update(msg)
 	cmds = append(cmds, cmd)
 	return a, tea.Batch(cmds...)
-}
-
-func (a *appModel) ToggleHelp() {
-	if a.showHelp {
-		a.showHelp = false
-		a.height += a.help.Height()
-	} else {
-		a.showHelp = true
-		a.height -= a.help.Height()
-	}
-
-	if sizable, ok := a.pages[a.currentPage].(layout.Sizeable); ok {
-		sizable.SetSize(a.width, a.height)
-	}
 }
 
 func (a *appModel) moveToPage(pageID page.PageID) tea.Cmd {
@@ -256,27 +240,12 @@ func (a appModel) View() string {
 		a.pages[a.currentPage].View(),
 	}
 
-	if a.showHelp {
-		bindings := layout.KeyMapToSlice(keys)
-		if p, ok := a.pages[a.currentPage].(layout.Bindings); ok {
-			bindings = append(bindings, p.BindingKeys()...)
-		}
-		if a.dialogVisible {
-			bindings = append(bindings, a.dialog.BindingKeys()...)
-		}
-		if a.currentPage == page.ReplPage {
-			bindings = append(bindings, replKeyMap)
-		}
-		a.help.SetBindings(bindings)
-		components = append(components, a.help.View())
-	}
-
 	components = append(components, a.status.View())
 
 	appView := lipgloss.JoinVertical(lipgloss.Top, components...)
 
-	if a.dialogVisible {
-		overlay := a.dialog.View()
+	if a.showPermissions {
+		overlay := a.permissions.View()
 		row := lipgloss.Height(appView) / 2
 		row -= lipgloss.Height(overlay) / 2
 		col := lipgloss.Width(appView) / 2
@@ -289,30 +258,66 @@ func (a appModel) View() string {
 			true,
 		)
 	}
+
+	if a.showHelp {
+		bindings := layout.KeyMapToSlice(keys)
+		if p, ok := a.pages[a.currentPage].(layout.Bindings); ok {
+			bindings = append(bindings, p.BindingKeys()...)
+		}
+		if a.showPermissions {
+			bindings = append(bindings, a.permissions.BindingKeys()...)
+		}
+		if a.currentPage == page.LogsPage {
+			bindings = append(bindings, logsKeyReturnKey)
+		}
+
+		a.help.SetBindings(bindings)
+
+		overlay := a.help.View()
+		row := lipgloss.Height(appView) / 2
+		row -= lipgloss.Height(overlay) / 2
+		col := lipgloss.Width(appView) / 2
+		col -= lipgloss.Width(overlay) / 2
+		appView = layout.PlaceOverlay(
+			col,
+			row,
+			overlay,
+			appView,
+			true,
+		)
+	}
+
+	if a.showQuit {
+		overlay := a.quit.View()
+		row := lipgloss.Height(appView) / 2
+		row -= lipgloss.Height(overlay) / 2
+		col := lipgloss.Width(appView) / 2
+		col -= lipgloss.Width(overlay) / 2
+		appView = layout.PlaceOverlay(
+			col,
+			row,
+			overlay,
+			appView,
+			true,
+		)
+	}
+
 	return appView
 }
 
 func New(app *app.App) tea.Model {
-	// homedir, _ := os.UserHomeDir()
-	// configPath := filepath.Join(homedir, ".termai.yaml")
-	//
 	startPage := page.ChatPage
-	// if _, err := os.Stat(configPath); os.IsNotExist(err) {
-	// 	startPage = page.InitPage
-	// }
-
 	return &appModel{
 		currentPage: startPage,
 		loadedPages: make(map[page.PageID]bool),
-		status:      core.NewStatusCmp(),
-		help:        core.NewHelpCmp(),
-		dialog:      core.NewDialogCmp(),
+		status:      core.NewStatusCmp(app.LSPClients),
+		help:        dialog.NewHelpCmp(),
+		quit:        dialog.NewQuitCmp(),
+		permissions: dialog.NewPermissionDialogCmp(),
 		app:         app,
 		pages: map[page.PageID]tea.Model{
 			page.ChatPage: page.NewChatPage(app),
 			page.LogsPage: page.NewLogsPage(),
-			page.InitPage: page.NewInitPage(),
-			page.ReplPage: page.NewReplPage(app),
 		},
 	}
 }

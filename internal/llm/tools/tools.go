@@ -14,12 +14,17 @@ type ToolInfo struct {
 
 type toolResponseType string
 
+type (
+	sessionIDContextKey string
+	messageIDContextKey string
+)
+
 const (
 	ToolResponseTypeText  toolResponseType = "text"
 	ToolResponseTypeImage toolResponseType = "image"
 
-	SessionIDContextKey = "session_id"
-	MessageIDContextKey = "message_id"
+	SessionIDContextKey sessionIDContextKey = "session_id"
+	MessageIDContextKey messageIDContextKey = "message_id"
 )
 
 type ToolResponse struct {

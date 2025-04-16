@@ -12,187 +12,257 @@ import (
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/bedrock"
 	"github.com/anthropics/anthropic-sdk-go/option"
-	"github.com/kujtimiihoxha/termai/internal/llm/models"
+	"github.com/kujtimiihoxha/termai/internal/config"
 	"github.com/kujtimiihoxha/termai/internal/llm/tools"
+	"github.com/kujtimiihoxha/termai/internal/logging"
 	"github.com/kujtimiihoxha/termai/internal/message"
 )
 
-type anthropicProvider struct {
-	client        anthropic.Client
-	model         models.Model
-	maxTokens     int64
-	apiKey        string
-	systemMessage string
-	useBedrock    bool
-	disableCache  bool
+type anthropicOptions struct {
+	useBedrock   bool
+	disableCache bool
+	shouldThink  func(userMessage string) bool
 }
 
-type AnthropicOption func(*anthropicProvider)
+type AnthropicOption func(*anthropicOptions)
 
-func WithAnthropicSystemMessage(message string) AnthropicOption {
-	return func(a *anthropicProvider) {
-		a.systemMessage = message
+type anthropicClient struct {
+	providerOptions providerClientOptions
+	options         anthropicOptions
+	client          anthropic.Client
+}
+
+type AnthropicClient ProviderClient
+
+func newAnthropicClient(opts providerClientOptions) AnthropicClient {
+	anthropicOpts := anthropicOptions{}
+	for _, o := range opts.anthropicOptions {
+		o(&anthropicOpts)
 	}
-}
 
-func WithAnthropicMaxTokens(maxTokens int64) AnthropicOption {
-	return func(a *anthropicProvider) {
-		a.maxTokens = maxTokens
+	anthropicClientOptions := []option.RequestOption{}
+	if opts.apiKey != "" {
+		anthropicClientOptions = append(anthropicClientOptions, option.WithAPIKey(opts.apiKey))
 	}
-}
-
-func WithAnthropicModel(model models.Model) AnthropicOption {
-	return func(a *anthropicProvider) {
-		a.model = model
+	if anthropicOpts.useBedrock {
+		anthropicClientOptions = append(anthropicClientOptions, bedrock.WithLoadDefaultConfig(context.Background()))
 	}
-}
 
-func WithAnthropicKey(apiKey string) AnthropicOption {
-	return func(a *anthropicProvider) {
-		a.apiKey = apiKey
-	}
-}
-
-func WithAnthropicBedrock() AnthropicOption {
-	return func(a *anthropicProvider) {
-		a.useBedrock = true
+	client := anthropic.NewClient(anthropicClientOptions...)
+	return &anthropicClient{
+		providerOptions: opts,
+		options:         anthropicOpts,
+		client:          client,
 	}
 }
 
-func WithAnthropicDisableCache() AnthropicOption {
-	return func(a *anthropicProvider) {
-		a.disableCache = true
-	}
-}
+func (a *anthropicClient) convertMessages(messages []message.Message) (anthropicMessages []anthropic.MessageParam) {
+	cachedBlocks := 0
+	for _, msg := range messages {
+		switch msg.Role {
+		case message.User:
+			content := anthropic.NewTextBlock(msg.Content().String())
+			if cachedBlocks < 2 && !a.options.disableCache {
+				content.OfRequestTextBlock.CacheControl = anthropic.CacheControlEphemeralParam{
+					Type: "ephemeral",
+				}
+				cachedBlocks++
+			}
+			anthropicMessages = append(anthropicMessages, anthropic.NewUserMessage(content))
 
-func NewAnthropicProvider(opts ...AnthropicOption) (Provider, error) {
-	provider := &anthropicProvider{
-		maxTokens: 1024,
-	}
-
-	for _, opt := range opts {
-		opt(provider)
-	}
-
-	if provider.systemMessage == "" {
-		return nil, errors.New("system message is required")
-	}
-
-	anthropicOptions := []option.RequestOption{}
-
-	if provider.apiKey != "" {
-		anthropicOptions = append(anthropicOptions, option.WithAPIKey(provider.apiKey))
-	}
-	if provider.useBedrock {
-		anthropicOptions = append(anthropicOptions, bedrock.WithLoadDefaultConfig(context.Background()))
-	}
-
-	provider.client = anthropic.NewClient(anthropicOptions...)
-	return provider, nil
-}
-
-func (a *anthropicProvider) SendMessages(ctx context.Context, messages []message.Message, tools []tools.BaseTool) (*ProviderResponse, error) {
-	messages = cleanupMessages(messages)
-	anthropicMessages := a.convertToAnthropicMessages(messages)
-	anthropicTools := a.convertToAnthropicTools(tools)
-
-	response, err := a.client.Messages.New(
-		ctx,
-		anthropic.MessageNewParams{
-			Model:       anthropic.Model(a.model.APIModel),
-			MaxTokens:   a.maxTokens,
-			Temperature: anthropic.Float(0),
-			Messages:    anthropicMessages,
-			Tools:       anthropicTools,
-			System: []anthropic.TextBlockParam{
-				{
-					Text: a.systemMessage,
-					CacheControl: anthropic.CacheControlEphemeralParam{
+		case message.Assistant:
+			blocks := []anthropic.ContentBlockParamUnion{}
+			if msg.Content().String() != "" {
+				content := anthropic.NewTextBlock(msg.Content().String())
+				if cachedBlocks < 2 && !a.options.disableCache {
+					content.OfRequestTextBlock.CacheControl = anthropic.CacheControlEphemeralParam{
 						Type: "ephemeral",
-					},
+					}
+					cachedBlocks++
+				}
+				blocks = append(blocks, content)
+			}
+
+			for _, toolCall := range msg.ToolCalls() {
+				var inputMap map[string]any
+				err := json.Unmarshal([]byte(toolCall.Input), &inputMap)
+				if err != nil {
+					continue
+				}
+				blocks = append(blocks, anthropic.ContentBlockParamOfRequestToolUseBlock(toolCall.ID, inputMap, toolCall.Name))
+			}
+
+			if len(blocks) == 0 {
+				logging.Warn("There is a message without content, investigate")
+				// This should never happend but we log this because we might have a bug in our cleanup method
+				continue
+			}
+			anthropicMessages = append(anthropicMessages, anthropic.NewAssistantMessage(blocks...))
+
+		case message.Tool:
+			results := make([]anthropic.ContentBlockParamUnion, len(msg.ToolResults()))
+			for i, toolResult := range msg.ToolResults() {
+				results[i] = anthropic.NewToolResultBlock(toolResult.ToolCallID, toolResult.Content, toolResult.IsError)
+			}
+			anthropicMessages = append(anthropicMessages, anthropic.NewUserMessage(results...))
+		}
+	}
+	return
+}
+
+func (a *anthropicClient) convertTools(tools []tools.BaseTool) []anthropic.ToolUnionParam {
+	anthropicTools := make([]anthropic.ToolUnionParam, len(tools))
+
+	for i, tool := range tools {
+		info := tool.Info()
+		toolParam := anthropic.ToolParam{
+			Name:        info.Name,
+			Description: anthropic.String(info.Description),
+			InputSchema: anthropic.ToolInputSchemaParam{
+				Properties: info.Parameters,
+				// TODO: figure out how we can tell claude the required fields?
+			},
+		}
+
+		if i == len(tools)-1 && !a.options.disableCache {
+			toolParam.CacheControl = anthropic.CacheControlEphemeralParam{
+				Type: "ephemeral",
+			}
+		}
+
+		anthropicTools[i] = anthropic.ToolUnionParam{OfTool: &toolParam}
+	}
+
+	return anthropicTools
+}
+
+func (a *anthropicClient) finishReason(reason string) message.FinishReason {
+	switch reason {
+	case "end_turn":
+		return message.FinishReasonEndTurn
+	case "max_tokens":
+		return message.FinishReasonMaxTokens
+	case "tool_use":
+		return message.FinishReasonToolUse
+	case "stop_sequence":
+		return message.FinishReasonEndTurn
+	default:
+		return message.FinishReasonUnknown
+	}
+}
+
+func (a *anthropicClient) preparedMessages(messages []anthropic.MessageParam, tools []anthropic.ToolUnionParam) anthropic.MessageNewParams {
+	var thinkingParam anthropic.ThinkingConfigParamUnion
+	lastMessage := messages[len(messages)-1]
+	isUser := lastMessage.Role == anthropic.MessageParamRoleUser
+	messageContent := ""
+	temperature := anthropic.Float(0)
+	if isUser {
+		for _, m := range lastMessage.Content {
+			if m.OfRequestTextBlock != nil && m.OfRequestTextBlock.Text != "" {
+				messageContent = m.OfRequestTextBlock.Text
+			}
+		}
+		if messageContent != "" && a.options.shouldThink != nil && a.options.shouldThink(messageContent) {
+			thinkingParam = anthropic.ThinkingConfigParamUnion{
+				OfThinkingConfigEnabled: &anthropic.ThinkingConfigEnabledParam{
+					BudgetTokens: int64(float64(a.providerOptions.maxTokens) * 0.8),
+					Type:         "enabled",
+				},
+			}
+			temperature = anthropic.Float(1)
+		}
+	}
+
+	return anthropic.MessageNewParams{
+		Model:       anthropic.Model(a.providerOptions.model.APIModel),
+		MaxTokens:   a.providerOptions.maxTokens,
+		Temperature: temperature,
+		Messages:    messages,
+		Tools:       tools,
+		Thinking:    thinkingParam,
+		System: []anthropic.TextBlockParam{
+			{
+				Text: a.providerOptions.systemMessage,
+				CacheControl: anthropic.CacheControlEphemeralParam{
+					Type: "ephemeral",
 				},
 			},
 		},
-	)
-	if err != nil {
-		return nil, err
 	}
-
-	content := ""
-	for _, block := range response.Content {
-		if text, ok := block.AsAny().(anthropic.TextBlock); ok {
-			content += text.Text
-		}
-	}
-
-	toolCalls := a.extractToolCalls(response.Content)
-	tokenUsage := a.extractTokenUsage(response.Usage)
-
-	return &ProviderResponse{
-		Content:   content,
-		ToolCalls: toolCalls,
-		Usage:     tokenUsage,
-	}, nil
 }
 
-func (a *anthropicProvider) StreamResponse(ctx context.Context, messages []message.Message, tools []tools.BaseTool) (<-chan ProviderEvent, error) {
-	messages = cleanupMessages(messages)
-	anthropicMessages := a.convertToAnthropicMessages(messages)
-	anthropicTools := a.convertToAnthropicTools(tools)
-
-	var thinkingParam anthropic.ThinkingConfigParamUnion
-	lastMessage := messages[len(messages)-1]
-	temperature := anthropic.Float(0)
-	if lastMessage.Role == message.User && strings.Contains(strings.ToLower(lastMessage.Content().String()), "think") {
-		thinkingParam = anthropic.ThinkingConfigParamUnion{
-			OfThinkingConfigEnabled: &anthropic.ThinkingConfigEnabledParam{
-				BudgetTokens: int64(float64(a.maxTokens) * 0.8),
-				Type:         "enabled",
-			},
-		}
-		temperature = anthropic.Float(1)
+func (a *anthropicClient) send(ctx context.Context, messages []message.Message, tools []tools.BaseTool) (resposne *ProviderResponse, err error) {
+	preparedMessages := a.preparedMessages(a.convertMessages(messages), a.convertTools(tools))
+	cfg := config.Get()
+	if cfg.Debug {
+		jsonData, _ := json.Marshal(preparedMessages)
+		logging.Debug("Prepared messages", "messages", string(jsonData))
 	}
+	attempts := 0
+	for {
+		attempts++
+		anthropicResponse, err := a.client.Messages.New(
+			ctx,
+			preparedMessages,
+		)
+		// If there is an error we are going to see if we can retry the call
+		if err != nil {
+			retry, after, retryErr := a.shouldRetry(attempts, err)
+			if retryErr != nil {
+				return nil, retryErr
+			}
+			if retry {
+				logging.WarnPersist("Retrying due to rate limit... attempt %d of %d", logging.PersistTimeArg, time.Millisecond*time.Duration(after+100))
+				select {
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				case <-time.After(time.Duration(after) * time.Millisecond):
+					continue
+				}
+			}
+			return nil, retryErr
+		}
 
+		content := ""
+		for _, block := range anthropicResponse.Content {
+			if text, ok := block.AsAny().(anthropic.TextBlock); ok {
+				content += text.Text
+			}
+		}
+
+		return &ProviderResponse{
+			Content:   content,
+			ToolCalls: a.toolCalls(*anthropicResponse),
+			Usage:     a.usage(*anthropicResponse),
+		}, nil
+	}
+}
+
+func (a *anthropicClient) stream(ctx context.Context, messages []message.Message, tools []tools.BaseTool) <-chan ProviderEvent {
+	preparedMessages := a.preparedMessages(a.convertMessages(messages), a.convertTools(tools))
+	cfg := config.Get()
+	if cfg.Debug {
+		jsonData, _ := json.Marshal(preparedMessages)
+		logging.Debug("Prepared messages", "messages", string(jsonData))
+	}
+	attempts := 0
 	eventChan := make(chan ProviderEvent)
-
 	go func() {
-		defer close(eventChan)
-
-		const maxRetries = 8
-		attempts := 0
-
 		for {
-
 			attempts++
-
-			stream := a.client.Messages.NewStreaming(
+			anthropicStream := a.client.Messages.NewStreaming(
 				ctx,
-				anthropic.MessageNewParams{
-					Model:       anthropic.Model(a.model.APIModel),
-					MaxTokens:   a.maxTokens,
-					Temperature: temperature,
-					Messages:    anthropicMessages,
-					Tools:       anthropicTools,
-					Thinking:    thinkingParam,
-					System: []anthropic.TextBlockParam{
-						{
-							Text: a.systemMessage,
-							CacheControl: anthropic.CacheControlEphemeralParam{
-								Type: "ephemeral",
-							},
-						},
-					},
-				},
+				preparedMessages,
 			)
-
 			accumulatedMessage := anthropic.Message{}
 
-			for stream.Next() {
-				event := stream.Current()
+			for anthropicStream.Next() {
+				event := anthropicStream.Current()
 				err := accumulatedMessage.Accumulate(event)
 				if err != nil {
 					eventChan <- ProviderEvent{Type: EventError, Error: err}
-					return // Don't retry on accumulation errors
+					continue
 				}
 
 				switch event := event.AsAny().(type) {
@@ -211,6 +281,7 @@ func (a *anthropicProvider) StreamResponse(ctx context.Context, messages []messa
 							Content: event.Delta.Text,
 						}
 					}
+				// TODO: check if we can somehow stream tool calls
 
 				case anthropic.ContentBlockStopEvent:
 					eventChan <- ProviderEvent{Type: EventContentStop}
@@ -223,84 +294,87 @@ func (a *anthropicProvider) StreamResponse(ctx context.Context, messages []messa
 						}
 					}
 
-					toolCalls := a.extractToolCalls(accumulatedMessage.Content)
-					tokenUsage := a.extractTokenUsage(accumulatedMessage.Usage)
-
 					eventChan <- ProviderEvent{
 						Type: EventComplete,
 						Response: &ProviderResponse{
 							Content:      content,
-							ToolCalls:    toolCalls,
-							Usage:        tokenUsage,
-							FinishReason: string(accumulatedMessage.StopReason),
+							ToolCalls:    a.toolCalls(accumulatedMessage),
+							Usage:        a.usage(accumulatedMessage),
+							FinishReason: a.finishReason(string(accumulatedMessage.StopReason)),
 						},
 					}
 				}
 			}
 
-			err := stream.Err()
+			err := anthropicStream.Err()
 			if err == nil || errors.Is(err, io.EOF) {
+				close(eventChan)
 				return
 			}
-
-			var apierr *anthropic.Error
-			if !errors.As(err, &apierr) {
-				eventChan <- ProviderEvent{Type: EventError, Error: err}
+			// If there is an error we are going to see if we can retry the call
+			retry, after, retryErr := a.shouldRetry(attempts, err)
+			if retryErr != nil {
+				eventChan <- ProviderEvent{Type: EventError, Error: retryErr}
+				close(eventChan)
 				return
 			}
-
-			if apierr.StatusCode != 429 && apierr.StatusCode != 529 {
-				eventChan <- ProviderEvent{Type: EventError, Error: err}
-				return
-			}
-
-			if attempts > maxRetries {
-				eventChan <- ProviderEvent{
-					Type:  EventError,
-					Error: errors.New("maximum retry attempts reached for rate limit (429)"),
-				}
-				return
-			}
-
-			retryMs := 0
-			retryAfterValues := apierr.Response.Header.Values("Retry-After")
-			if len(retryAfterValues) > 0 {
-				var retryAfterSec int
-				if _, err := fmt.Sscanf(retryAfterValues[0], "%d", &retryAfterSec); err == nil {
-					retryMs = retryAfterSec * 1000
-					eventChan <- ProviderEvent{
-						Type: EventWarning,
-						Info: fmt.Sprintf("[Rate limited: waiting %d seconds as specified by API]", retryAfterSec),
+			if retry {
+				logging.WarnPersist("Retrying due to rate limit... attempt %d of %d", logging.PersistTimeArg, time.Millisecond*time.Duration(after+100))
+				select {
+				case <-ctx.Done():
+					// context cancelled
+					if ctx.Err() != nil {
+						eventChan <- ProviderEvent{Type: EventError, Error: ctx.Err()}
 					}
+					close(eventChan)
+					return
+				case <-time.After(time.Duration(after) * time.Millisecond):
+					continue
 				}
-			} else {
-				eventChan <- ProviderEvent{
-					Type: EventWarning,
-					Info: fmt.Sprintf("[Retrying due to rate limit... attempt %d of %d]", attempts, maxRetries),
-				}
-
-				backoffMs := 2000 * (1 << (attempts - 1))
-				jitterMs := int(float64(backoffMs) * 0.2)
-				retryMs = backoffMs + jitterMs
 			}
-			select {
-			case <-ctx.Done():
+			if ctx.Err() != nil {
 				eventChan <- ProviderEvent{Type: EventError, Error: ctx.Err()}
-				return
-			case <-time.After(time.Duration(retryMs) * time.Millisecond):
-				continue
 			}
 
+			close(eventChan)
+			return
 		}
 	}()
-
-	return eventChan, nil
+	return eventChan
 }
 
-func (a *anthropicProvider) extractToolCalls(content []anthropic.ContentBlockUnion) []message.ToolCall {
+func (a *anthropicClient) shouldRetry(attempts int, err error) (bool, int64, error) {
+	var apierr *anthropic.Error
+	if !errors.As(err, &apierr) {
+		return false, 0, err
+	}
+
+	if apierr.StatusCode != 429 && apierr.StatusCode != 529 {
+		return false, 0, err
+	}
+
+	if attempts > maxRetries {
+		return false, 0, fmt.Errorf("maximum retry attempts reached for rate limit: %d retries", maxRetries)
+	}
+
+	retryMs := 0
+	retryAfterValues := apierr.Response.Header.Values("Retry-After")
+
+	backoffMs := 2000 * (1 << (attempts - 1))
+	jitterMs := int(float64(backoffMs) * 0.2)
+	retryMs = backoffMs + jitterMs
+	if len(retryAfterValues) > 0 {
+		if _, err := fmt.Sscanf(retryAfterValues[0], "%d", &retryMs); err == nil {
+			retryMs = retryMs * 1000
+		}
+	}
+	return true, int64(retryMs), nil
+}
+
+func (a *anthropicClient) toolCalls(msg anthropic.Message) []message.ToolCall {
 	var toolCalls []message.ToolCall
 
-	for _, block := range content {
+	for _, block := range msg.Content {
 		switch variant := block.AsAny().(type) {
 		case anthropic.ToolUseBlock:
 			toolCall := message.ToolCall{
@@ -316,90 +390,33 @@ func (a *anthropicProvider) extractToolCalls(content []anthropic.ContentBlockUni
 	return toolCalls
 }
 
-func (a *anthropicProvider) extractTokenUsage(usage anthropic.Usage) TokenUsage {
+func (a *anthropicClient) usage(msg anthropic.Message) TokenUsage {
 	return TokenUsage{
-		InputTokens:         usage.InputTokens,
-		OutputTokens:        usage.OutputTokens,
-		CacheCreationTokens: usage.CacheCreationInputTokens,
-		CacheReadTokens:     usage.CacheReadInputTokens,
+		InputTokens:         msg.Usage.InputTokens,
+		OutputTokens:        msg.Usage.OutputTokens,
+		CacheCreationTokens: msg.Usage.CacheCreationInputTokens,
+		CacheReadTokens:     msg.Usage.CacheReadInputTokens,
 	}
 }
 
-func (a *anthropicProvider) convertToAnthropicTools(tools []tools.BaseTool) []anthropic.ToolUnionParam {
-	anthropicTools := make([]anthropic.ToolUnionParam, len(tools))
-
-	for i, tool := range tools {
-		info := tool.Info()
-		toolParam := anthropic.ToolParam{
-			Name:        info.Name,
-			Description: anthropic.String(info.Description),
-			InputSchema: anthropic.ToolInputSchemaParam{
-				Properties: info.Parameters,
-			},
-		}
-
-		if i == len(tools)-1 && !a.disableCache {
-			toolParam.CacheControl = anthropic.CacheControlEphemeralParam{
-				Type: "ephemeral",
-			}
-		}
-
-		anthropicTools[i] = anthropic.ToolUnionParam{OfTool: &toolParam}
+func WithAnthropicBedrock(useBedrock bool) AnthropicOption {
+	return func(options *anthropicOptions) {
+		options.useBedrock = useBedrock
 	}
-
-	return anthropicTools
 }
 
-func (a *anthropicProvider) convertToAnthropicMessages(messages []message.Message) []anthropic.MessageParam {
-	anthropicMessages := make([]anthropic.MessageParam, 0, len(messages))
-	cachedBlocks := 0
-
-	for _, msg := range messages {
-		switch msg.Role {
-		case message.User:
-			content := anthropic.NewTextBlock(msg.Content().String())
-			if cachedBlocks < 2 && !a.disableCache {
-				content.OfRequestTextBlock.CacheControl = anthropic.CacheControlEphemeralParam{
-					Type: "ephemeral",
-				}
-				cachedBlocks++
-			}
-			anthropicMessages = append(anthropicMessages, anthropic.NewUserMessage(content))
-
-		case message.Assistant:
-			blocks := []anthropic.ContentBlockParamUnion{}
-			if msg.Content().String() != "" {
-				content := anthropic.NewTextBlock(msg.Content().String())
-				if cachedBlocks < 2 && !a.disableCache {
-					content.OfRequestTextBlock.CacheControl = anthropic.CacheControlEphemeralParam{
-						Type: "ephemeral",
-					}
-					cachedBlocks++
-				}
-				blocks = append(blocks, content)
-			}
-
-			for _, toolCall := range msg.ToolCalls() {
-				var inputMap map[string]any
-				err := json.Unmarshal([]byte(toolCall.Input), &inputMap)
-				if err != nil {
-					continue
-				}
-				blocks = append(blocks, anthropic.ContentBlockParamOfRequestToolUseBlock(toolCall.ID, inputMap, toolCall.Name))
-			}
-
-			if len(blocks) > 0 {
-				anthropicMessages = append(anthropicMessages, anthropic.NewAssistantMessage(blocks...))
-			}
-
-		case message.Tool:
-			results := make([]anthropic.ContentBlockParamUnion, len(msg.ToolResults()))
-			for i, toolResult := range msg.ToolResults() {
-				results[i] = anthropic.NewToolResultBlock(toolResult.ToolCallID, toolResult.Content, toolResult.IsError)
-			}
-			anthropicMessages = append(anthropicMessages, anthropic.NewUserMessage(results...))
-		}
+func WithAnthropicDisableCache() AnthropicOption {
+	return func(options *anthropicOptions) {
+		options.disableCache = true
 	}
+}
 
-	return anthropicMessages
+func DefaultShouldThinkFn(s string) bool {
+	return strings.Contains(strings.ToLower(s), "think")
+}
+
+func WithAnthropicShouldThinkFn(fn func(string) bool) AnthropicOption {
+	return func(options *anthropicOptions) {
+		options.shouldThink = fn
+	}
 }

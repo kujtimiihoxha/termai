@@ -11,6 +11,7 @@ import (
 
 	"github.com/kujtimiihoxha/termai/internal/config"
 	"github.com/kujtimiihoxha/termai/internal/diff"
+	"github.com/kujtimiihoxha/termai/internal/history"
 	"github.com/kujtimiihoxha/termai/internal/lsp"
 	"github.com/kujtimiihoxha/termai/internal/permission"
 )
@@ -35,6 +36,7 @@ type EditResponseMetadata struct {
 type editTool struct {
 	lspClients  map[string]*lsp.Client
 	permissions permission.Service
+	files       history.Service
 }
 
 const (
@@ -88,10 +90,11 @@ When making edits:
 Remember: when making multiple file edits in a row to the same file, you should prefer to send all edits in a single message with multiple calls to this tool, rather than multiple messages with a single call each.`
 )
 
-func NewEditTool(lspClients map[string]*lsp.Client, permissions permission.Service) BaseTool {
+func NewEditTool(lspClients map[string]*lsp.Client, permissions permission.Service, files history.Service) BaseTool {
 	return &editTool{
 		lspClients:  lspClients,
 		permissions: permissions,
+		files:       files,
 	}
 }
 
@@ -153,6 +156,11 @@ func (e *editTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error)
 	if err != nil {
 		return response, nil
 	}
+	if response.IsError {
+		// Return early if there was an error during content replacement
+		// This prevents unnecessary LSP diagnostics processing
+		return response, nil
+	}
 
 	waitForLspDiagnostics(ctx, params.FilePath, e.lspClients)
 	text := fmt.Sprintf("<result>\n%s\n</result>\n", response.Content)
@@ -206,6 +214,20 @@ func (e *editTool) createNewFile(ctx context.Context, filePath, content string) 
 	err = os.WriteFile(filePath, []byte(content), 0o644)
 	if err != nil {
 		return ToolResponse{}, fmt.Errorf("failed to write file: %w", err)
+	}
+
+	// File can't be in the history so we create a new file history
+	_, err = e.files.Create(ctx, sessionID, filePath, "")
+	if err != nil {
+		// Log error but don't fail the operation
+		return ToolResponse{}, fmt.Errorf("error creating file history: %w", err)
+	}
+
+	// Add the new content to the file history
+	_, err = e.files.CreateVersion(ctx, sessionID, filePath, content)
+	if err != nil {
+		// Log error but don't fail the operation
+		fmt.Printf("Error creating file history version: %v\n", err)
 	}
 
 	recordFileWrite(filePath)
@@ -298,6 +320,29 @@ func (e *editTool) deleteContent(ctx context.Context, filePath, oldString string
 	if err != nil {
 		return ToolResponse{}, fmt.Errorf("failed to write file: %w", err)
 	}
+
+	// Check if file exists in history
+	file, err := e.files.GetByPathAndSession(ctx, filePath, sessionID)
+	if err != nil {
+		_, err = e.files.Create(ctx, sessionID, filePath, oldContent)
+		if err != nil {
+			// Log error but don't fail the operation
+			return ToolResponse{}, fmt.Errorf("error creating file history: %w", err)
+		}
+	}
+	if file.Content != oldContent {
+		// User Manually changed the content store an intermediate version
+		_, err = e.files.CreateVersion(ctx, sessionID, filePath, oldContent)
+		if err != nil {
+			fmt.Printf("Error creating file history version: %v\n", err)
+		}
+	}
+	// Store the new version
+	_, err = e.files.CreateVersion(ctx, sessionID, filePath, "")
+	if err != nil {
+		fmt.Printf("Error creating file history version: %v\n", err)
+	}
+
 	recordFileWrite(filePath)
 	recordFileRead(filePath)
 
@@ -356,6 +401,9 @@ func (e *editTool) replaceContent(ctx context.Context, filePath, oldString, newS
 
 	newContent := oldContent[:index] + newString + oldContent[index+len(oldString):]
 
+	if oldContent == newContent {
+		return NewTextErrorResponse("new content is the same as old content. No changes made."), nil
+	}
 	sessionID, messageID := GetContextValues(ctx)
 
 	if sessionID == "" || messageID == "" {
@@ -374,8 +422,7 @@ func (e *editTool) replaceContent(ctx context.Context, filePath, oldString, newS
 			Description: fmt.Sprintf("Replace content in file %s", filePath),
 			Params: EditPermissionsParams{
 				FilePath: filePath,
-
-				Diff: diff,
+				Diff:     diff,
 			},
 		},
 	)
@@ -386,6 +433,28 @@ func (e *editTool) replaceContent(ctx context.Context, filePath, oldString, newS
 	err = os.WriteFile(filePath, []byte(newContent), 0o644)
 	if err != nil {
 		return ToolResponse{}, fmt.Errorf("failed to write file: %w", err)
+	}
+
+	// Check if file exists in history
+	file, err := e.files.GetByPathAndSession(ctx, filePath, sessionID)
+	if err != nil {
+		_, err = e.files.Create(ctx, sessionID, filePath, oldContent)
+		if err != nil {
+			// Log error but don't fail the operation
+			return ToolResponse{}, fmt.Errorf("error creating file history: %w", err)
+		}
+	}
+	if file.Content != oldContent {
+		// User Manually changed the content store an intermediate version
+		_, err = e.files.CreateVersion(ctx, sessionID, filePath, oldContent)
+		if err != nil {
+			fmt.Printf("Error creating file history version: %v\n", err)
+		}
+	}
+	// Store the new version
+	_, err = e.files.CreateVersion(ctx, sessionID, filePath, newContent)
+	if err != nil {
+		fmt.Printf("Error creating file history version: %v\n", err)
 	}
 
 	recordFileWrite(filePath)

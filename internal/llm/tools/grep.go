@@ -27,7 +27,7 @@ type grepMatch struct {
 	modTime time.Time
 }
 
-type GrepMetadata struct {
+type GrepResponseMetadata struct {
 	NumberOfMatches int  `json:"number_of_matches"`
 	Truncated       bool `json:"truncated"`
 }
@@ -134,7 +134,7 @@ func (g *grepTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error)
 
 	return WithResponseMetadata(
 		NewTextResponse(output),
-		GrepMetadata{
+		GrepResponseMetadata{
 			NumberOfMatches: len(matches),
 			Truncated:       truncated,
 		},

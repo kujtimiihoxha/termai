@@ -16,10 +16,8 @@ import (
 
 type DetailComponent interface {
 	tea.Model
-	layout.Focusable
 	layout.Sizeable
 	layout.Bindings
-	layout.Bordered
 }
 
 type detailCmp struct {

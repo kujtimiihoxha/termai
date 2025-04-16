@@ -10,6 +10,7 @@ import (
 type SplitPaneLayout interface {
 	tea.Model
 	Sizeable
+	Bindings
 	SetLeftPanel(panel Container)
 	SetRightPanel(panel Container)
 	SetBottomPanel(panel Container)

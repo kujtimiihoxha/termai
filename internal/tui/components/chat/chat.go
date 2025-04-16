@@ -19,8 +19,6 @@ type SessionSelectedMsg = session.Session
 
 type SessionClearedMsg struct{}
 
-type AgentWorkingMsg bool
-
 type EditorFocusMsg bool
 
 func lspsConfigured(width int) string {

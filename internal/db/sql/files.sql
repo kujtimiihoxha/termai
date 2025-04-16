@@ -6,7 +6,9 @@ WHERE id = ? LIMIT 1;
 -- name: GetFileByPathAndSession :one
 SELECT *
 FROM files
-WHERE path = ? AND session_id = ? LIMIT 1;
+WHERE path = ? AND session_id = ?
+ORDER BY created_at DESC
+LIMIT 1;
 
 -- name: ListFilesBySession :many
 SELECT *

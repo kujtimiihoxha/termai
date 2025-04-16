@@ -16,20 +16,12 @@ import (
 
 type TableComponent interface {
 	tea.Model
-	layout.Focusable
 	layout.Sizeable
 	layout.Bindings
-	layout.Bordered
 }
 
 type tableCmp struct {
 	table table.Model
-}
-
-func (i *tableCmp) BorderText() map[layout.BorderPosition]string {
-	return map[layout.BorderPosition]string{
-		layout.TopLeftBorder: "Logs",
-	}
 }
 
 type selectedLogMsg logging.LogMessage
@@ -72,20 +64,6 @@ func (i *tableCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (i *tableCmp) View() string {
 	return i.table.View()
-}
-
-func (i *tableCmp) Blur() tea.Cmd {
-	i.table.Blur()
-	return nil
-}
-
-func (i *tableCmp) Focus() tea.Cmd {
-	i.table.Focus()
-	return nil
-}
-
-func (i *tableCmp) IsFocused() bool {
-	return i.table.Focused()
 }
 
 func (i *tableCmp) GetSize() (int, int) {

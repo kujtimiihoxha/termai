@@ -1,14 +1,14 @@
-# TermAI
+# OpenCode
 
 > **⚠️ Early Development Notice:** This project is in early development and is not yet ready for production use. Features may change, break, or be incomplete. Use at your own risk.
 
 A powerful terminal-based AI assistant for developers, providing intelligent coding assistance directly in your terminal.
 
-[![TermAI Demo](https://asciinema.org/a/dtc4nJyGSZX79HRUmFLY3gmoy.svg)](https://asciinema.org/a/dtc4nJyGSZX79HRUmFLY3gmoy)
+[![OpenCode Demo](https://asciinema.org/a/dtc4nJyGSZX79HRUmFLY3gmoy.svg)](https://asciinema.org/a/dtc4nJyGSZX79HRUmFLY3gmoy)
 
 ## Overview
 
-TermAI is a Go-based CLI application that brings AI assistance to your terminal. It provides a TUI (Terminal User Interface) for interacting with various AI models to help with coding tasks, debugging, and more.
+OpenCode is a Go-based CLI application that brings AI assistance to your terminal. It provides a TUI (Terminal User Interface) for interacting with various AI models to help with coding tasks, debugging, and more.
 
 ## Features
 
@@ -23,16 +23,16 @@ TermAI is a Go-based CLI application that brings AI assistance to your terminal.
 
 ```bash
 # Coming soon
-go install github.com/kujtimiihoxha/termai@latest
+go install github.com/kujtimiihoxha/opencode@latest
 ```
 
 ## Configuration
 
-TermAI looks for configuration in the following locations:
+OpenCode looks for configuration in the following locations:
 
-- `$HOME/.termai.json`
-- `$XDG_CONFIG_HOME/termai/.termai.json`
-- `./.termai.json` (local directory)
+- `$HOME/.opencode.json`
+- `$XDG_CONFIG_HOME/opencode/.opencode.json`
+- `./.opencode.json` (local directory)
 
 You can also use environment variables:
 
@@ -43,11 +43,11 @@ You can also use environment variables:
 ## Usage
 
 ```bash
-# Start TermAI
-termai
+# Start OpenCode
+opencode
 
 # Start with debug logging
-termai -d
+opencode -d
 ```
 
 ### Keyboard Shortcuts
@@ -81,7 +81,7 @@ termai -d
 
 ## Architecture
 
-TermAI is built with a modular architecture:
+OpenCode is built with a modular architecture:
 
 - **cmd**: Command-line interface using Cobra
 - **internal/app**: Core application services
@@ -103,22 +103,22 @@ TermAI is built with a modular architecture:
 
 ```bash
 # Clone the repository
-git clone https://github.com/kujtimiihoxha/termai.git
-cd termai
+git clone https://github.com/kujtimiihoxha/opencode.git
+cd opencode
 
 # Build the diff script first
 go run cmd/diff/main.go
 
 # Build
-go build -o termai
+go build -o opencode
 
 # Run
-./termai
+./opencode
 ```
 
 ## Acknowledgments
 
-TermAI builds upon the work of several open source projects and developers:
+OpenCode builds upon the work of several open source projects and developers:
 
 - [@isaacphi](https://github.com/isaacphi) - LSP client implementation
 

@@ -20,7 +20,7 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "termai",
+	Use:   "OpenCode",
 	Short: "A terminal ai assistant",
 	Long:  `A terminal ai assistant`,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -89,12 +89,9 @@ var rootCmd = &cobra.Command{
 		// Set up message handling for the TUI
 		go func() {
 			defer tuiWg.Done()
-			defer func() {
-				if r := recover(); r != nil {
-					logging.Error("Panic in TUI message handling: %v", r)
-					attemptTUIRecovery(program)
-				}
-			}()
+			defer logging.RecoverPanic("TUI-message-handler", func() {
+				attemptTUIRecovery(program)
+			})
 
 			for {
 				select {
@@ -153,11 +150,7 @@ func attemptTUIRecovery(program *tea.Program) {
 
 func initMCPTools(ctx context.Context, app *app.App) {
 	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				logging.Error("Panic in MCP goroutine: %v", r)
-			}
-		}()
+		defer logging.RecoverPanic("MCP-goroutine", nil)
 
 		// Create a context with timeout for the initial MCP tools fetch
 		ctxWithTimeout, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -179,11 +172,7 @@ func setupSubscriber[T any](
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		defer func() {
-			if r := recover(); r != nil {
-				logging.Error("Panic in %s subscription goroutine: %v", name, r)
-			}
-		}()
+		defer logging.RecoverPanic(fmt.Sprintf("subscription-%s", name), nil)
 
 		for {
 			select {
@@ -232,6 +221,7 @@ func setupSubscriptions(app *app.App) (chan tea.Msg, func()) {
 		// Wait with a timeout for all goroutines to complete
 		waitCh := make(chan struct{})
 		go func() {
+			defer logging.RecoverPanic("subscription-cleanup", nil)
 			wg.Wait()
 			close(waitCh)
 		}()

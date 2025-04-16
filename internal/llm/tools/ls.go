@@ -23,7 +23,7 @@ type TreeNode struct {
 	Children []*TreeNode `json:"children,omitempty"`
 }
 
-type LSMetadata struct {
+type LSResponseMetadata struct {
 	NumberOfFiles int  `json:"number_of_files"`
 	Truncated     bool `json:"truncated"`
 }
@@ -121,7 +121,7 @@ func (l *lsTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error) {
 
 	return WithResponseMetadata(
 		NewTextResponse(output),
-		LSMetadata{
+		LSResponseMetadata{
 			NumberOfFiles: len(files),
 			Truncated:     truncated,
 		},

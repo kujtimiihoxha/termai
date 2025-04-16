@@ -2,6 +2,7 @@ package message
 
 import (
 	"encoding/base64"
+	"slices"
 	"time"
 
 	"github.com/kujtimiihoxha/termai/internal/llm/models"
@@ -14,6 +15,20 @@ const (
 	User      MessageRole = "user"
 	System    MessageRole = "system"
 	Tool      MessageRole = "tool"
+)
+
+type FinishReason string
+
+const (
+	FinishReasonEndTurn          FinishReason = "end_turn"
+	FinishReasonMaxTokens        FinishReason = "max_tokens"
+	FinishReasonToolUse          FinishReason = "tool_use"
+	FinishReasonCanceled         FinishReason = "canceled"
+	FinishReasonError            FinishReason = "error"
+	FinishReasonPermissionDenied FinishReason = "permission_denied"
+
+	// Should never happen
+	FinishReasonUnknown FinishReason = "unknown"
 )
 
 type ContentPart interface {
@@ -83,8 +98,8 @@ type ToolResult struct {
 func (ToolResult) isPart() {}
 
 type Finish struct {
-	Reason string `json:"reason"`
-	Time   int64  `json:"time"`
+	Reason FinishReason `json:"reason"`
+	Time   int64        `json:"time"`
 }
 
 func (Finish) isPart() {}
@@ -176,7 +191,7 @@ func (m *Message) FinishPart() *Finish {
 	return nil
 }
 
-func (m *Message) FinishReason() string {
+func (m *Message) FinishReason() FinishReason {
 	for _, part := range m.Parts {
 		if c, ok := part.(Finish); ok {
 			return c.Reason
@@ -246,7 +261,14 @@ func (m *Message) SetToolResults(tr []ToolResult) {
 	}
 }
 
-func (m *Message) AddFinish(reason string) {
+func (m *Message) AddFinish(reason FinishReason) {
+	// remove any existing finish part
+	for i, part := range m.Parts {
+		if _, ok := part.(Finish); ok {
+			m.Parts = slices.Delete(m.Parts, i, i+1)
+			break
+		}
+	}
 	m.Parts = append(m.Parts, Finish{Reason: reason, Time: time.Now().Unix()})
 }
 

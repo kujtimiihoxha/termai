@@ -50,7 +50,7 @@ func (w *WorkspaceWatcher) AddRegistrations(ctx context.Context, id string, watc
 	w.registrations = append(w.registrations, watchers...)
 
 	// Print detailed registration information for debugging
-	if cnf.Debug {
+	if cnf.DebugLSP {
 		logging.Debug("Adding file watcher registrations",
 			"id", id,
 			"watchers", len(watchers),
@@ -116,7 +116,7 @@ func (w *WorkspaceWatcher) AddRegistrations(ctx context.Context, id string, watc
 			// Skip directories that should be excluded
 			if d.IsDir() {
 				if path != w.workspacePath && shouldExcludeDir(path) {
-					if cnf.Debug {
+					if cnf.DebugLSP {
 						logging.Debug("Skipping excluded directory", "path", path)
 					}
 					return filepath.SkipDir
@@ -136,7 +136,7 @@ func (w *WorkspaceWatcher) AddRegistrations(ctx context.Context, id string, watc
 		})
 
 		elapsedTime := time.Since(startTime)
-		if cnf.Debug {
+		if cnf.DebugLSP {
 			logging.Debug("Workspace scan complete",
 				"filesOpened", filesOpened,
 				"elapsedTime", elapsedTime.Seconds(),
@@ -144,7 +144,7 @@ func (w *WorkspaceWatcher) AddRegistrations(ctx context.Context, id string, watc
 			)
 		}
 
-		if err != nil && cnf.Debug {
+		if err != nil && cnf.DebugLSP {
 			logging.Debug("Error scanning workspace for files to open", "error", err)
 		}
 	}()
@@ -175,7 +175,7 @@ func (w *WorkspaceWatcher) WatchWorkspace(ctx context.Context, workspacePath str
 		// Skip excluded directories (except workspace root)
 		if d.IsDir() && path != workspacePath {
 			if shouldExcludeDir(path) {
-				if cnf.Debug {
+				if cnf.DebugLSP {
 					logging.Debug("Skipping excluded directory", "path", path)
 				}
 				return filepath.SkipDir
@@ -228,7 +228,7 @@ func (w *WorkspaceWatcher) WatchWorkspace(ctx context.Context, workspacePath str
 			}
 
 			// Debug logging
-			if cnf.Debug {
+			if cnf.DebugLSP {
 				matched, kind := w.isPathWatched(event.Name)
 				logging.Debug("File event",
 					"path", event.Name,
@@ -491,7 +491,7 @@ func (w *WorkspaceWatcher) handleFileEvent(ctx context.Context, uri string, chan
 // notifyFileEvent sends a didChangeWatchedFiles notification for a file event
 func (w *WorkspaceWatcher) notifyFileEvent(ctx context.Context, uri string, changeType protocol.FileChangeType) error {
 	cnf := config.Get()
-	if cnf.Debug {
+	if cnf.DebugLSP {
 		logging.Debug("Notifying file event",
 			"uri", uri,
 			"changeType", changeType,
@@ -615,7 +615,7 @@ func shouldExcludeFile(filePath string) bool {
 
 	// Skip large files
 	if info.Size() > maxFileSize {
-		if cnf.Debug {
+		if cnf.DebugLSP {
 			logging.Debug("Skipping large file",
 				"path", filePath,
 				"size", info.Size(),
@@ -648,7 +648,7 @@ func (w *WorkspaceWatcher) openMatchingFile(ctx context.Context, path string) {
 	// Check if this path should be watched according to server registrations
 	if watched, _ := w.isPathWatched(path); watched {
 		// Don't need to check if it's already open - the client.OpenFile handles that
-		if err := w.client.OpenFile(ctx, path); err != nil && cnf.Debug {
+		if err := w.client.OpenFile(ctx, path); err != nil && cnf.DebugLSP {
 			logging.Error("Error opening file", "path", path, "error", err)
 		}
 	}

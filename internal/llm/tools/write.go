@@ -10,6 +10,7 @@ import (
 
 	"github.com/kujtimiihoxha/termai/internal/config"
 	"github.com/kujtimiihoxha/termai/internal/diff"
+	"github.com/kujtimiihoxha/termai/internal/history"
 	"github.com/kujtimiihoxha/termai/internal/lsp"
 	"github.com/kujtimiihoxha/termai/internal/permission"
 )
@@ -27,6 +28,7 @@ type WritePermissionsParams struct {
 type writeTool struct {
 	lspClients  map[string]*lsp.Client
 	permissions permission.Service
+	files       history.Service
 }
 
 type WriteResponseMetadata struct {
@@ -67,10 +69,11 @@ TIPS:
 - Always include descriptive comments when making changes to existing code`
 )
 
-func NewWriteTool(lspClients map[string]*lsp.Client, permissions permission.Service) BaseTool {
+func NewWriteTool(lspClients map[string]*lsp.Client, permissions permission.Service, files history.Service) BaseTool {
 	return &writeTool{
 		lspClients:  lspClients,
 		permissions: permissions,
+		files:       files,
 	}
 }
 
@@ -174,6 +177,28 @@ func (w *writeTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error
 	err = os.WriteFile(filePath, []byte(params.Content), 0o644)
 	if err != nil {
 		return ToolResponse{}, fmt.Errorf("error writing file: %w", err)
+	}
+
+	// Check if file exists in history
+	file, err := w.files.GetByPathAndSession(ctx, filePath, sessionID)
+	if err != nil {
+		_, err = w.files.Create(ctx, sessionID, filePath, oldContent)
+		if err != nil {
+			// Log error but don't fail the operation
+			return ToolResponse{}, fmt.Errorf("error creating file history: %w", err)
+		}
+	}
+	if file.Content != oldContent {
+		// User Manually changed the content store an intermediate version
+		_, err = w.files.CreateVersion(ctx, sessionID, filePath, oldContent)
+		if err != nil {
+			fmt.Printf("Error creating file history version: %v\n", err)
+		}
+	}
+	// Store the new version
+	_, err = w.files.CreateVersion(ctx, sessionID, filePath, params.Content)
+	if err != nil {
+		fmt.Printf("Error creating file history version: %v\n", err)
 	}
 
 	recordFileWrite(filePath)

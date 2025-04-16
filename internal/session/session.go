@@ -24,6 +24,7 @@ type Session struct {
 type Service interface {
 	pubsub.Suscriber[Session]
 	Create(ctx context.Context, title string) (Session, error)
+	CreateTitleSession(ctx context.Context, parentSessionID string) (Session, error)
 	CreateTaskSession(ctx context.Context, toolCallID, parentSessionID, title string) (Session, error)
 	Get(ctx context.Context, id string) (Session, error)
 	List(ctx context.Context) ([]Session, error)
@@ -54,6 +55,20 @@ func (s *service) CreateTaskSession(ctx context.Context, toolCallID, parentSessi
 		ID:              toolCallID,
 		ParentSessionID: sql.NullString{String: parentSessionID, Valid: true},
 		Title:           title,
+	})
+	if err != nil {
+		return Session{}, err
+	}
+	session := s.fromDBItem(dbSession)
+	s.Publish(pubsub.CreatedEvent, session)
+	return session, nil
+}
+
+func (s *service) CreateTitleSession(ctx context.Context, parentSessionID string) (Session, error) {
+	dbSession, err := s.q.CreateSession(ctx, db.CreateSessionParams{
+		ID:              "title-" + parentSessionID,
+		ParentSessionID: sql.NullString{String: parentSessionID, Valid: true},
+		Title:           "Generate a title",
 	})
 	if err != nil {
 		return Session{}, err

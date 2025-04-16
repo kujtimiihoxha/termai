@@ -22,16 +22,17 @@ func (app *App) initLSPClients(ctx context.Context) {
 // createAndStartLSPClient creates a new LSP client, initializes it, and starts its workspace watcher
 func (app *App) createAndStartLSPClient(ctx context.Context, name string, command string, args ...string) {
 	// Create a specific context for initialization with a timeout
-	initCtx, initCancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer initCancel()
 
 	// Create the LSP client
-	lspClient, err := lsp.NewClient(initCtx, command, args...)
+	lspClient, err := lsp.NewClient(ctx, command, args...)
 	if err != nil {
 		logging.Error("Failed to create LSP client for", name, err)
 		return
+
 	}
 
+	initCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
 	// Initialize with the initialization context
 	_, err = lspClient.InitializeLSPClient(initCtx, config.WorkingDirectory())
 	if err != nil {
@@ -64,14 +65,10 @@ func (app *App) createAndStartLSPClient(ctx context.Context, name string, comman
 // runWorkspaceWatcher executes the workspace watcher for an LSP client
 func (app *App) runWorkspaceWatcher(ctx context.Context, name string, workspaceWatcher *watcher.WorkspaceWatcher) {
 	defer app.watcherWG.Done()
-	defer func() {
-		if r := recover(); r != nil {
-			logging.Error("LSP client crashed", "client", name, "panic", r)
-
-			// Try to restart the client
-			app.restartLSPClient(ctx, name)
-		}
-	}()
+	defer logging.RecoverPanic("LSP-"+name, func() {
+		// Try to restart the client
+		app.restartLSPClient(ctx, name)
+	})
 
 	workspaceWatcher.WatchWorkspace(ctx, config.WorkingDirectory())
 	logging.Info("Workspace watcher stopped", "client", name)
