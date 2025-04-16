@@ -266,6 +266,18 @@ func (p *permissionDialogCmp) renderEditContent() string {
 	return ""
 }
 
+func (p *permissionDialogCmp) renderPatchContent() string {
+	if pr, ok := p.permission.Params.(tools.PatchPermissionsParams); ok {
+		diff := p.GetOrSetDiff(p.permission.ID, func() (string, error) {
+			return diff.FormatDiff(pr.Diff, diff.WithTotalWidth(p.contentViewPort.Width))
+		})
+
+		p.contentViewPort.SetContent(diff)
+		return p.styleViewport()
+	}
+	return ""
+}
+
 func (p *permissionDialogCmp) renderWriteContent() string {
 	if pr, ok := p.permission.Params.(tools.WritePermissionsParams); ok {
 		// Use the cache for diff rendering
@@ -350,6 +362,8 @@ func (p *permissionDialogCmp) render() string {
 		contentFinal = p.renderBashContent()
 	case tools.EditToolName:
 		contentFinal = p.renderEditContent()
+	case tools.PatchToolName:
+		contentFinal = p.renderPatchContent()
 	case tools.WriteToolName:
 		contentFinal = p.renderWriteContent()
 	case tools.FetchToolName:

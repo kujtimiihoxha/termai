@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -141,8 +142,17 @@ func (m *sidebarCmp) modifiedFiles() string {
 			)
 	}
 
+	// Sort file paths alphabetically for consistent ordering
+	var paths []string
+	for path := range m.modFiles {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+
+	// Create views for each file in sorted order
 	var fileViews []string
-	for path, stats := range m.modFiles {
+	for _, path := range paths {
+		stats := m.modFiles[path]
 		fileViews = append(fileViews, m.modifiedFile(path, stats.additions, stats.removals))
 	}
 
