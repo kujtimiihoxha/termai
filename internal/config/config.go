@@ -7,8 +7,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/kujtimiihoxha/termai/internal/llm/models"
-	"github.com/kujtimiihoxha/termai/internal/logging"
+	"github.com/kujtimiihoxha/opencode/internal/llm/models"
+	"github.com/kujtimiihoxha/opencode/internal/logging"
 	"github.com/spf13/viper"
 )
 

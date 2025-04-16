@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/kujtimiihoxha/termai/internal/config"
-	"github.com/kujtimiihoxha/termai/internal/llm/tools"
-	"github.com/kujtimiihoxha/termai/internal/lsp"
-	"github.com/kujtimiihoxha/termai/internal/message"
-	"github.com/kujtimiihoxha/termai/internal/session"
+	"github.com/kujtimiihoxha/opencode/internal/config"
+	"github.com/kujtimiihoxha/opencode/internal/llm/tools"
+	"github.com/kujtimiihoxha/opencode/internal/lsp"
+	"github.com/kujtimiihoxha/opencode/internal/message"
+	"github.com/kujtimiihoxha/opencode/internal/session"
 )
 
 type agentTool struct {

@@ -8,10 +8,10 @@ import (
 	"io"
 	"time"
 
-	"github.com/kujtimiihoxha/termai/internal/config"
-	"github.com/kujtimiihoxha/termai/internal/llm/tools"
-	"github.com/kujtimiihoxha/termai/internal/logging"
-	"github.com/kujtimiihoxha/termai/internal/message"
+	"github.com/kujtimiihoxha/opencode/internal/config"
+	"github.com/kujtimiihoxha/opencode/internal/llm/tools"
+	"github.com/kujtimiihoxha/opencode/internal/logging"
+	"github.com/kujtimiihoxha/opencode/internal/message"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 )

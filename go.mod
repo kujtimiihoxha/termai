@@ -1,4 +1,4 @@
-module github.com/kujtimiihoxha/termai
+module github.com/kujtimiihoxha/opencode
 
 go 1.24.0
 

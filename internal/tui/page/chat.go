@@ -5,11 +5,11 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/kujtimiihoxha/termai/internal/app"
-	"github.com/kujtimiihoxha/termai/internal/session"
-	"github.com/kujtimiihoxha/termai/internal/tui/components/chat"
-	"github.com/kujtimiihoxha/termai/internal/tui/layout"
-	"github.com/kujtimiihoxha/termai/internal/tui/util"
+	"github.com/kujtimiihoxha/opencode/internal/app"
+	"github.com/kujtimiihoxha/opencode/internal/session"
+	"github.com/kujtimiihoxha/opencode/internal/tui/components/chat"
+	"github.com/kujtimiihoxha/opencode/internal/tui/layout"
+	"github.com/kujtimiihoxha/opencode/internal/tui/util"
 )
 
 var ChatPage PageID = "chat"

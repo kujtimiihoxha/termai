@@ -5,10 +5,10 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/kujtimiihoxha/termai/internal/config"
-	"github.com/kujtimiihoxha/termai/internal/session"
-	"github.com/kujtimiihoxha/termai/internal/tui/styles"
-	"github.com/kujtimiihoxha/termai/internal/version"
+	"github.com/kujtimiihoxha/opencode/internal/config"
+	"github.com/kujtimiihoxha/opencode/internal/session"
+	"github.com/kujtimiihoxha/opencode/internal/tui/styles"
+	"github.com/kujtimiihoxha/opencode/internal/version"
 )
 
 type SendMsg struct {

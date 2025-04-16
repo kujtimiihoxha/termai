@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/kujtimiihoxha/termai/cmd"
-	"github.com/kujtimiihoxha/termai/internal/logging"
+	"github.com/kujtimiihoxha/opencode/cmd"
+	"github.com/kujtimiihoxha/opencode/internal/logging"
 )
 
 func main() {

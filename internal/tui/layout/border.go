@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/kujtimiihoxha/termai/internal/tui/styles"
+	"github.com/kujtimiihoxha/opencode/internal/tui/styles"
 )
 
 type BorderPosition int

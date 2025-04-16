@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/kujtimiihoxha/termai/internal/config"
-	"github.com/kujtimiihoxha/termai/internal/llm/tools"
-	"github.com/kujtimiihoxha/termai/internal/logging"
-	"github.com/kujtimiihoxha/termai/internal/permission"
-	"github.com/kujtimiihoxha/termai/internal/version"
+	"github.com/kujtimiihoxha/opencode/internal/config"
+	"github.com/kujtimiihoxha/opencode/internal/llm/tools"
+	"github.com/kujtimiihoxha/opencode/internal/logging"
+	"github.com/kujtimiihoxha/opencode/internal/permission"
+	"github.com/kujtimiihoxha/opencode/internal/version"
 
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/mcp"

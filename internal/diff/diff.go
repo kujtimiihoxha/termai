@@ -19,8 +19,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
-	"github.com/kujtimiihoxha/termai/internal/config"
-	"github.com/kujtimiihoxha/termai/internal/logging"
+	"github.com/kujtimiihoxha/opencode/internal/config"
+	"github.com/kujtimiihoxha/opencode/internal/logging"
 	"github.com/sergi/go-diff/diffmatchpatch"
 )
 

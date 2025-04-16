@@ -7,12 +7,12 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/kujtimiihoxha/termai/internal/config"
-	"github.com/kujtimiihoxha/termai/internal/llm/models"
-	"github.com/kujtimiihoxha/termai/internal/lsp"
-	"github.com/kujtimiihoxha/termai/internal/lsp/protocol"
-	"github.com/kujtimiihoxha/termai/internal/tui/styles"
-	"github.com/kujtimiihoxha/termai/internal/tui/util"
+	"github.com/kujtimiihoxha/opencode/internal/config"
+	"github.com/kujtimiihoxha/opencode/internal/llm/models"
+	"github.com/kujtimiihoxha/opencode/internal/lsp"
+	"github.com/kujtimiihoxha/opencode/internal/lsp/protocol"
+	"github.com/kujtimiihoxha/opencode/internal/tui/styles"
+	"github.com/kujtimiihoxha/opencode/internal/tui/util"
 )
 
 type statusCmp struct {

@@ -2,8 +2,8 @@ package page
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/kujtimiihoxha/termai/internal/tui/components/logs"
-	"github.com/kujtimiihoxha/termai/internal/tui/layout"
+	"github.com/kujtimiihoxha/opencode/internal/tui/components/logs"
+	"github.com/kujtimiihoxha/opencode/internal/tui/layout"
 )
 
 var LogsPage PageID = "logs"

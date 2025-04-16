@@ -8,11 +8,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/kujtimiihoxha/termai/internal/config"
-	"github.com/kujtimiihoxha/termai/internal/diff"
-	"github.com/kujtimiihoxha/termai/internal/history"
-	"github.com/kujtimiihoxha/termai/internal/lsp"
-	"github.com/kujtimiihoxha/termai/internal/permission"
+	"github.com/kujtimiihoxha/opencode/internal/config"
+	"github.com/kujtimiihoxha/opencode/internal/diff"
+	"github.com/kujtimiihoxha/opencode/internal/history"
+	"github.com/kujtimiihoxha/opencode/internal/lsp"
+	"github.com/kujtimiihoxha/opencode/internal/permission"
 )
 
 type WriteParams struct {

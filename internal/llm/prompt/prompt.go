@@ -1,8 +1,8 @@
 package prompt
 
 import (
-	"github.com/kujtimiihoxha/termai/internal/config"
-	"github.com/kujtimiihoxha/termai/internal/llm/models"
+	"github.com/kujtimiihoxha/opencode/internal/config"
+	"github.com/kujtimiihoxha/opencode/internal/llm/models"
 )
 
 func GetAgentPrompt(agentName config.AgentName, provider models.ModelProvider) string {

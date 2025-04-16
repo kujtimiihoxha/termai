@@ -7,15 +7,15 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/kujtimiihoxha/termai/internal/config"
-	"github.com/kujtimiihoxha/termai/internal/llm/models"
-	"github.com/kujtimiihoxha/termai/internal/llm/prompt"
-	"github.com/kujtimiihoxha/termai/internal/llm/provider"
-	"github.com/kujtimiihoxha/termai/internal/llm/tools"
-	"github.com/kujtimiihoxha/termai/internal/logging"
-	"github.com/kujtimiihoxha/termai/internal/message"
-	"github.com/kujtimiihoxha/termai/internal/permission"
-	"github.com/kujtimiihoxha/termai/internal/session"
+	"github.com/kujtimiihoxha/opencode/internal/config"
+	"github.com/kujtimiihoxha/opencode/internal/llm/models"
+	"github.com/kujtimiihoxha/opencode/internal/llm/prompt"
+	"github.com/kujtimiihoxha/opencode/internal/llm/provider"
+	"github.com/kujtimiihoxha/opencode/internal/llm/tools"
+	"github.com/kujtimiihoxha/opencode/internal/logging"
+	"github.com/kujtimiihoxha/opencode/internal/message"
+	"github.com/kujtimiihoxha/opencode/internal/permission"
+	"github.com/kujtimiihoxha/opencode/internal/session"
 )
 
 // Common errors

@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/kujtimiihoxha/termai/internal/tui/styles"
-	"github.com/kujtimiihoxha/termai/internal/tui/util"
+	"github.com/kujtimiihoxha/opencode/internal/tui/styles"
+	"github.com/kujtimiihoxha/opencode/internal/tui/util"
 	"github.com/mattn/go-runewidth"
 	"github.com/muesli/ansi"
 	"github.com/muesli/reflow/truncate"

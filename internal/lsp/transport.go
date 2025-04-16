@@ -8,8 +8,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/kujtimiihoxha/termai/internal/config"
-	"github.com/kujtimiihoxha/termai/internal/logging"
+	"github.com/kujtimiihoxha/opencode/internal/config"
+	"github.com/kujtimiihoxha/opencode/internal/logging"
 )
 
 // Write writes an LSP message to the given writer

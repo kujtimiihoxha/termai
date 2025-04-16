@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kujtimiihoxha/termai/internal/lsp"
+	"github.com/kujtimiihoxha/opencode/internal/lsp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -4,7 +4,7 @@ package lsp
 import (
 	"context"
 
-	"github.com/kujtimiihoxha/termai/internal/lsp/protocol"
+	"github.com/kujtimiihoxha/opencode/internal/lsp/protocol"
 )
 
 // Implementation sends a textDocument/implementation request to the LSP server.

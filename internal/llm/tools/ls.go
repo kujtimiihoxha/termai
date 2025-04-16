@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kujtimiihoxha/termai/internal/config"
+	"github.com/kujtimiihoxha/opencode/internal/config"
 )
 
 type LSParams struct {

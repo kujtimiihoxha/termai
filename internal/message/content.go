@@ -5,7 +5,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/kujtimiihoxha/termai/internal/llm/models"
+	"github.com/kujtimiihoxha/opencode/internal/llm/models"
 )
 
 type MessageRole string

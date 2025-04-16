@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/kujtimiihoxha/termai/internal/config"
-	"github.com/kujtimiihoxha/termai/internal/logging"
-	"github.com/kujtimiihoxha/termai/internal/lsp"
-	"github.com/kujtimiihoxha/termai/internal/lsp/protocol"
+	"github.com/kujtimiihoxha/opencode/internal/config"
+	"github.com/kujtimiihoxha/opencode/internal/logging"
+	"github.com/kujtimiihoxha/opencode/internal/lsp"
+	"github.com/kujtimiihoxha/opencode/internal/lsp/protocol"
 )
 
 // WorkspaceWatcher manages LSP file watching

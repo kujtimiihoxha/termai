@@ -3,12 +3,12 @@ package agent
 import (
 	"context"
 
-	"github.com/kujtimiihoxha/termai/internal/history"
-	"github.com/kujtimiihoxha/termai/internal/llm/tools"
-	"github.com/kujtimiihoxha/termai/internal/lsp"
-	"github.com/kujtimiihoxha/termai/internal/message"
-	"github.com/kujtimiihoxha/termai/internal/permission"
-	"github.com/kujtimiihoxha/termai/internal/session"
+	"github.com/kujtimiihoxha/opencode/internal/history"
+	"github.com/kujtimiihoxha/opencode/internal/llm/tools"
+	"github.com/kujtimiihoxha/opencode/internal/lsp"
+	"github.com/kujtimiihoxha/opencode/internal/message"
+	"github.com/kujtimiihoxha/opencode/internal/permission"
+	"github.com/kujtimiihoxha/opencode/internal/session"
 )
 
 func CoderAgentTools(

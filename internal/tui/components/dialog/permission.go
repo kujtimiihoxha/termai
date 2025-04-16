@@ -9,12 +9,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/kujtimiihoxha/termai/internal/diff"
-	"github.com/kujtimiihoxha/termai/internal/llm/tools"
-	"github.com/kujtimiihoxha/termai/internal/permission"
-	"github.com/kujtimiihoxha/termai/internal/tui/layout"
-	"github.com/kujtimiihoxha/termai/internal/tui/styles"
-	"github.com/kujtimiihoxha/termai/internal/tui/util"
+	"github.com/kujtimiihoxha/opencode/internal/diff"
+	"github.com/kujtimiihoxha/opencode/internal/llm/tools"
+	"github.com/kujtimiihoxha/opencode/internal/permission"
+	"github.com/kujtimiihoxha/opencode/internal/tui/layout"
+	"github.com/kujtimiihoxha/opencode/internal/tui/styles"
+	"github.com/kujtimiihoxha/opencode/internal/tui/util"
 )
 
 type PermissionAction string

@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/kujtimiihoxha/termai/internal/history"
-	"github.com/kujtimiihoxha/termai/internal/permission"
-	"github.com/kujtimiihoxha/termai/internal/pubsub"
+	"github.com/kujtimiihoxha/opencode/internal/history"
+	"github.com/kujtimiihoxha/opencode/internal/permission"
+	"github.com/kujtimiihoxha/opencode/internal/pubsub"
 )
 
 // Mock permission service for testing

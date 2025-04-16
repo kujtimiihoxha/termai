@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kujtimiihoxha/termai/internal/config"
+	"github.com/kujtimiihoxha/opencode/internal/config"
 )
 
 type GrepParams struct {

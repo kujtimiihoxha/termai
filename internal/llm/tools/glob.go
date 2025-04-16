@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/bmatcuk/doublestar/v4"
-	"github.com/kujtimiihoxha/termai/internal/config"
+	"github.com/kujtimiihoxha/opencode/internal/config"
 )
 
 const (

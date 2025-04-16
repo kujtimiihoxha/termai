@@ -6,9 +6,9 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/kujtimiihoxha/termai/internal/tui/layout"
-	"github.com/kujtimiihoxha/termai/internal/tui/styles"
-	"github.com/kujtimiihoxha/termai/internal/tui/util"
+	"github.com/kujtimiihoxha/opencode/internal/tui/layout"
+	"github.com/kujtimiihoxha/opencode/internal/tui/styles"
+	"github.com/kujtimiihoxha/opencode/internal/tui/util"
 )
 
 const question = "Are you sure you want to quit?"

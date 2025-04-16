@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/kujtimiihoxha/termai/internal/pubsub"
+	"github.com/kujtimiihoxha/opencode/internal/pubsub"
 )
 
 var ErrorPermissionDenied = errors.New("permission denied")
