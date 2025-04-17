@@ -10,6 +10,7 @@ import (
 type Container interface {
 	tea.Model
 	Sizeable
+	Bindings
 }
 type container struct {
 	width  int

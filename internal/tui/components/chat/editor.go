@@ -118,12 +118,14 @@ func (m *editorCmp) GetSize() (int, int) {
 }
 
 func (m *editorCmp) BindingKeys() []key.Binding {
-	bindings := layout.KeyMapToSlice(m.textarea.KeyMap)
+	bindings := []key.Binding{}
 	if m.textarea.Focused() {
 		bindings = append(bindings, layout.KeyMapToSlice(focusedKeyMaps)...)
 	} else {
 		bindings = append(bindings, layout.KeyMapToSlice(bluredKeyMaps)...)
 	}
+
+	bindings = append(bindings, layout.KeyMapToSlice(m.textarea.KeyMap)...)
 	return bindings
 }
 

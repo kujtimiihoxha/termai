@@ -26,7 +26,7 @@ func (h *helpCmp) SetBindings(k []key.Binding) {
 func (h *helpCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		h.width = 80
+		h.width = 90
 		h.height = msg.Height
 	}
 	return h, nil
@@ -62,7 +62,7 @@ func (h *helpCmp) render() string {
 	var (
 		pairs []string
 		width int
-		rows  = 12 - 2
+		rows  = 14 - 2
 	)
 	for i := 0; i < len(bindings); i += rows {
 		var (

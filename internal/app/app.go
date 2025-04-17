@@ -39,7 +39,7 @@ func New(ctx context.Context, conn *sql.DB) (*App, error) {
 	q := db.New(conn)
 	sessions := session.NewService(q)
 	messages := message.NewService(q)
-	files := history.NewService(q)
+	files := history.NewService(q, conn)
 
 	app := &App{
 		Sessions:    sessions,

@@ -11,6 +11,9 @@ import (
 	"github.com/kujtimiihoxha/opencode/internal/llm/models"
 	"github.com/kujtimiihoxha/opencode/internal/lsp"
 	"github.com/kujtimiihoxha/opencode/internal/lsp/protocol"
+	"github.com/kujtimiihoxha/opencode/internal/pubsub"
+	"github.com/kujtimiihoxha/opencode/internal/session"
+	"github.com/kujtimiihoxha/opencode/internal/tui/components/chat"
 	"github.com/kujtimiihoxha/opencode/internal/tui/styles"
 	"github.com/kujtimiihoxha/opencode/internal/tui/util"
 )
@@ -20,6 +23,7 @@ type statusCmp struct {
 	width      int
 	messageTTL time.Duration
 	lspClients map[string]*lsp.Client
+	session    session.Session
 }
 
 // clearMessageCmd is a command that clears status messages after a timeout
@@ -38,6 +42,16 @@ func (m statusCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		return m, nil
+	case chat.SessionSelectedMsg:
+		m.session = msg
+	case chat.SessionClearedMsg:
+		m.session = session.Session{}
+	case pubsub.Event[session.Session]:
+		if msg.Type == pubsub.UpdatedEvent {
+			if m.session.ID == msg.Payload.ID {
+				m.session = msg.Payload
+			}
+		}
 	case util.InfoMsg:
 		m.info = msg
 		ttl := msg.TTL
@@ -53,8 +67,43 @@ func (m statusCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 var helpWidget = styles.Padded.Background(styles.ForgroundMid).Foreground(styles.BackgroundDarker).Bold(true).Render("ctrl+? help")
 
+func formatTokensAndCost(tokens int64, cost float64) string {
+	// Format tokens in human-readable format (e.g., 110K, 1.2M)
+	var formattedTokens string
+	switch {
+	case tokens >= 1_000_000:
+		formattedTokens = fmt.Sprintf("%.1fM", float64(tokens)/1_000_000)
+	case tokens >= 1_000:
+		formattedTokens = fmt.Sprintf("%.1fK", float64(tokens)/1_000)
+	default:
+		formattedTokens = fmt.Sprintf("%d", tokens)
+	}
+
+	// Remove .0 suffix if present
+	if strings.HasSuffix(formattedTokens, ".0K") {
+		formattedTokens = strings.Replace(formattedTokens, ".0K", "K", 1)
+	}
+	if strings.HasSuffix(formattedTokens, ".0M") {
+		formattedTokens = strings.Replace(formattedTokens, ".0M", "M", 1)
+	}
+
+	// Format cost with $ symbol and 2 decimal places
+	formattedCost := fmt.Sprintf("$%.2f", cost)
+
+	return fmt.Sprintf("Tokens: %s, Cost: %s", formattedTokens, formattedCost)
+}
+
 func (m statusCmp) View() string {
 	status := helpWidget
+	if m.session.ID != "" {
+		tokens := formatTokensAndCost(m.session.PromptTokens+m.session.CompletionTokens, m.session.Cost)
+		tokensStyle := styles.Padded.
+			Background(styles.Forground).
+			Foreground(styles.BackgroundDim).
+			Render(tokens)
+		status += tokensStyle
+	}
+
 	diagnostics := styles.Padded.Background(styles.BackgroundDarker).Render(m.projectDiagnostics())
 	if m.info.Msg != "" {
 		infoStyle := styles.Padded.
@@ -82,6 +131,7 @@ func (m statusCmp) View() string {
 			Width(m.availableFooterMsgWidth(diagnostics)).
 			Render("")
 	}
+
 	status += diagnostics
 	status += m.model()
 	return status
@@ -136,7 +186,11 @@ func (m *statusCmp) projectDiagnostics() string {
 }
 
 func (m statusCmp) availableFooterMsgWidth(diagnostics string) int {
-	return max(0, m.width-lipgloss.Width(helpWidget)-lipgloss.Width(m.model())-lipgloss.Width(diagnostics))
+	tokens := ""
+	if m.session.ID != "" {
+		tokens = formatTokensAndCost(m.session.PromptTokens+m.session.CompletionTokens, m.session.Cost)
+	}
+	return max(0, m.width-lipgloss.Width(helpWidget)-lipgloss.Width(m.model())-lipgloss.Width(diagnostics)-lipgloss.Width(tokens))
 }
 
 func (m statusCmp) model() string {

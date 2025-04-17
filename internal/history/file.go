@@ -2,9 +2,11 @@ package history
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/kujtimiihoxha/opencode/internal/db"
@@ -40,10 +42,11 @@ type Service interface {
 
 type service struct {
 	*pubsub.Broker[File]
-	q db.Querier
+	db *sql.DB
+	q  *db.Queries
 }
 
-func NewService(q db.Querier) Service {
+func NewService(q *db.Queries, db *sql.DB) Service {
 	return &service{
 		Broker: pubsub.NewBroker[File](),
 		q:      q,
@@ -91,19 +94,64 @@ func (s *service) CreateVersion(ctx context.Context, sessionID, path, content st
 }
 
 func (s *service) createWithVersion(ctx context.Context, sessionID, path, content, version string) (File, error) {
-	dbFile, err := s.q.CreateFile(ctx, db.CreateFileParams{
-		ID:        uuid.New().String(),
-		SessionID: sessionID,
-		Path:      path,
-		Content:   content,
-		Version:   version,
-	})
-	if err != nil {
-		return File{}, err
+	// Maximum number of retries for transaction conflicts
+	const maxRetries = 3
+	var file File
+	var err error
+
+	// Retry loop for transaction conflicts
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		// Start a transaction
+		tx, err := s.db.BeginTx(ctx, nil)
+		if err != nil {
+			return File{}, fmt.Errorf("failed to begin transaction: %w", err)
+		}
+
+		// Create a new queries instance with the transaction
+		qtx := s.q.WithTx(tx)
+
+		// Try to create the file within the transaction
+		dbFile, err := qtx.CreateFile(ctx, db.CreateFileParams{
+			ID:        uuid.New().String(),
+			SessionID: sessionID,
+			Path:      path,
+			Content:   content,
+			Version:   version,
+		})
+		if err != nil {
+			// Rollback the transaction
+			tx.Rollback()
+
+			// Check if this is a uniqueness constraint violation
+			if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+				if attempt < maxRetries-1 {
+					// If we have retries left, generate a new version and try again
+					if strings.HasPrefix(version, "v") {
+						versionNum, parseErr := strconv.Atoi(version[1:])
+						if parseErr == nil {
+							version = fmt.Sprintf("v%d", versionNum+1)
+							continue
+						}
+					}
+					// If we can't parse the version, use a timestamp-based version
+					version = fmt.Sprintf("v%d", time.Now().Unix())
+					continue
+				}
+			}
+			return File{}, err
+		}
+
+		// Commit the transaction
+		if err = tx.Commit(); err != nil {
+			return File{}, fmt.Errorf("failed to commit transaction: %w", err)
+		}
+
+		file = s.fromDBItem(dbFile)
+		s.Publish(pubsub.CreatedEvent, file)
+		return file, nil
 	}
-	file := s.fromDBItem(dbFile)
-	s.Publish(pubsub.CreatedEvent, file)
-	return file, nil
+
+	return file, err
 }
 
 func (s *service) Get(ctx context.Context, id string) (File, error) {

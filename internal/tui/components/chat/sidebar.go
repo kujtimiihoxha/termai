@@ -127,7 +127,7 @@ func (m *sidebarCmp) modifiedFiles() string {
 	// If no modified files, show a placeholder message
 	if m.modFiles == nil || len(m.modFiles) == 0 {
 		message := "No modified files"
-		remainingWidth := m.width - lipgloss.Width(modifiedFiles)
+		remainingWidth := m.width - lipgloss.Width(message)
 		if remainingWidth > 0 {
 			message += strings.Repeat(" ", remainingWidth)
 		}
@@ -221,6 +221,9 @@ func (m *sidebarCmp) loadModifiedFiles(ctx context.Context) {
 
 		// Skip if we can't find the initial version
 		if initialVersion.ID == "" {
+			continue
+		}
+		if initialVersion.Content == file.Content {
 			continue
 		}
 

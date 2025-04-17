@@ -27,7 +27,8 @@ CREATE TABLE IF NOT EXISTS files (
     version TEXT NOT NULL,
     created_at INTEGER NOT NULL,  -- Unix timestamp in milliseconds
     updated_at INTEGER NOT NULL,  -- Unix timestamp in milliseconds
-    FOREIGN KEY (session_id) REFERENCES sessions (id) ON DELETE CASCADE
+    FOREIGN KEY (session_id) REFERENCES sessions (id) ON DELETE CASCADE,
+    UNIQUE(path, session_id, version)
 );
 
 CREATE INDEX IF NOT EXISTS idx_files_session_id ON files (session_id);

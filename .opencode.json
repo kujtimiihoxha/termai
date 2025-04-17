@@ -3,16 +3,5 @@
     "gopls": {
       "command": "gopls"
     }
-  },
-  "agents": {
-    "coder": {
-      "model": "gpt-4.1"
-    },
-    "task": {
-      "model": "gpt-4.1"
-    },
-    "title": {
-      "model": "gpt-4.1"
-    }
   }
 }

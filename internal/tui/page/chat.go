@@ -15,9 +15,12 @@ import (
 var ChatPage PageID = "chat"
 
 type chatPage struct {
-	app     *app.App
-	layout  layout.SplitPaneLayout
-	session session.Session
+	app         *app.App
+	editor      layout.Container
+	messages    layout.Container
+	layout      layout.SplitPaneLayout
+	session     session.Session
+	editingMode bool
 }
 
 type ChatKeyMap struct {
@@ -59,6 +62,8 @@ func (p *chatPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if cmd != nil {
 			return p, cmd
 		}
+	case chat.EditorFocusMsg:
+		p.editingMode = bool(msg)
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, keyMap.NewSession):
@@ -133,7 +138,11 @@ func (p *chatPage) View() string {
 
 func (p *chatPage) BindingKeys() []key.Binding {
 	bindings := layout.KeyMapToSlice(keyMap)
-	bindings = append(bindings, p.layout.BindingKeys()...)
+	if p.editingMode {
+		bindings = append(bindings, p.editor.BindingKeys()...)
+	} else {
+		bindings = append(bindings, p.messages.BindingKeys()...)
+	}
 	return bindings
 }
 
@@ -148,7 +157,10 @@ func NewChatPage(app *app.App) tea.Model {
 		layout.WithBorder(true, false, false, false),
 	)
 	return &chatPage{
-		app: app,
+		app:         app,
+		editor:      editorContainer,
+		messages:    messagesContainer,
+		editingMode: true,
 		layout: layout.NewSplitPane(
 			layout.WithLeftPanel(messagesContainer),
 			layout.WithBottomPanel(editorContainer),
