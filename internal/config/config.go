@@ -156,6 +156,10 @@ func Load(workingDir string, debug bool) (*Config, error) {
 		slog.SetDefault(logger)
 	}
 
+	if cfg.Agents == nil {
+		cfg.Agents = make(map[AgentName]Agent)
+	}
+
 	// Override the max tokens for title agent
 	cfg.Agents[AgentTitle] = Agent{
 		Model:     cfg.Agents[AgentTitle].Model,
