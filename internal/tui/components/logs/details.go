@@ -22,7 +22,6 @@ type DetailComponent interface {
 
 type detailCmp struct {
 	width, height int
-	focused       bool
 	currentLog    logging.LogMessage
 	viewport      viewport.Model
 }
@@ -37,11 +36,6 @@ func (i *detailCmp) Init() tea.Cmd {
 }
 
 func (i *detailCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var (
-		cmd  tea.Cmd
-		cmds []tea.Cmd
-	)
-
 	switch msg := msg.(type) {
 	case selectedLogMsg:
 		if msg.ID != i.currentLog.ID {
@@ -50,12 +44,7 @@ func (i *detailCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	if i.focused {
-		i.viewport, cmd = i.viewport.Update(msg)
-		cmds = append(cmds, cmd)
-	}
-
-	return i, tea.Batch(cmds...)
+	return i, nil
 }
 
 func (i *detailCmp) updateContent() {
@@ -123,21 +112,7 @@ func getLevelStyle(level string) lipgloss.Style {
 }
 
 func (i *detailCmp) View() string {
-	return i.viewport.View()
-}
-
-func (i *detailCmp) Blur() tea.Cmd {
-	i.focused = false
-	return nil
-}
-
-func (i *detailCmp) Focus() tea.Cmd {
-	i.focused = true
-	return nil
-}
-
-func (i *detailCmp) IsFocused() bool {
-	return i.focused
+	return styles.ForceReplaceBackgroundWithLipgloss(i.viewport.View(), styles.Background)
 }
 
 func (i *detailCmp) GetSize() (int, int) {

@@ -33,29 +33,27 @@ func (i *tableCmp) Init() tea.Cmd {
 
 func (i *tableCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
-	if i.table.Focused() {
-		switch msg.(type) {
-		case pubsub.Event[logging.LogMessage]:
-			i.setRows()
-			return i, nil
-		}
-		prevSelectedRow := i.table.SelectedRow()
-		t, cmd := i.table.Update(msg)
-		cmds = append(cmds, cmd)
-		i.table = t
-		selectedRow := i.table.SelectedRow()
-		if selectedRow != nil {
-			if prevSelectedRow == nil || selectedRow[0] == prevSelectedRow[0] {
-				var log logging.LogMessage
-				for _, row := range logging.List() {
-					if row.ID == selectedRow[0] {
-						log = row
-						break
-					}
+	switch msg.(type) {
+	case pubsub.Event[logging.LogMessage]:
+		i.setRows()
+		return i, nil
+	}
+	prevSelectedRow := i.table.SelectedRow()
+	t, cmd := i.table.Update(msg)
+	cmds = append(cmds, cmd)
+	i.table = t
+	selectedRow := i.table.SelectedRow()
+	if selectedRow != nil {
+		if prevSelectedRow == nil || selectedRow[0] == prevSelectedRow[0] {
+			var log logging.LogMessage
+			for _, row := range logging.List() {
+				if row.ID == selectedRow[0] {
+					log = row
+					break
 				}
-				if log.ID != "" {
-					cmds = append(cmds, util.CmdHandler(selectedLogMsg(log)))
-				}
+			}
+			if log.ID != "" {
+				cmds = append(cmds, util.CmdHandler(selectedLogMsg(log)))
 			}
 		}
 	}
@@ -63,7 +61,7 @@ func (i *tableCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (i *tableCmp) View() string {
-	return i.table.View()
+	return styles.ForceReplaceBackgroundWithLipgloss(i.table.View(), styles.Background)
 }
 
 func (i *tableCmp) GetSize() (int, int) {
@@ -128,6 +126,7 @@ func NewLogsTable() TableComponent {
 		table.WithColumns(columns),
 		table.WithStyles(defaultStyles),
 	)
+	tableModel.Focus()
 	return &tableCmp{
 		table: tableModel,
 	}

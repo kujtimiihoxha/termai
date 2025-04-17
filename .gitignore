@@ -41,7 +41,5 @@ Thumbs.db
 .env
 .env.local
 
-.opencode
+.opencode/
 
-internal/assets/diff/index.mjs
-cmd/test/*
