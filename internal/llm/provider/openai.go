@@ -14,11 +14,13 @@ import (
 	"github.com/kujtimiihoxha/opencode/internal/message"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
+	"github.com/openai/openai-go/shared"
 )
 
 type openaiOptions struct {
-	baseURL      string
-	disableCache bool
+	baseURL         string
+	disableCache    bool
+	reasoningEffort string
 }
 
 type OpenAIOption func(*openaiOptions)
@@ -32,7 +34,9 @@ type openaiClient struct {
 type OpenAIClient ProviderClient
 
 func newOpenAIClient(opts providerClientOptions) OpenAIClient {
-	openaiOpts := openaiOptions{}
+	openaiOpts := openaiOptions{
+		reasoningEffort: "medium",
+	}
 	for _, o := range opts.openaiOptions {
 		o(&openaiOpts)
 	}
@@ -138,12 +142,29 @@ func (o *openaiClient) finishReason(reason string) message.FinishReason {
 }
 
 func (o *openaiClient) preparedParams(messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam) openai.ChatCompletionNewParams {
-	return openai.ChatCompletionNewParams{
-		Model:     openai.ChatModel(o.providerOptions.model.APIModel),
-		Messages:  messages,
-		MaxTokens: openai.Int(o.providerOptions.maxTokens),
-		Tools:     tools,
+	params := openai.ChatCompletionNewParams{
+		Model:    openai.ChatModel(o.providerOptions.model.APIModel),
+		Messages: messages,
+		Tools:    tools,
 	}
+
+	if o.providerOptions.model.CanReason == true {
+		params.MaxCompletionTokens = openai.Int(o.providerOptions.maxTokens)
+		switch o.options.reasoningEffort {
+		case "low":
+			params.ReasoningEffort = shared.ReasoningEffortLow
+		case "medium":
+			params.ReasoningEffort = shared.ReasoningEffortMedium
+		case "high":
+			params.ReasoningEffort = shared.ReasoningEffortHigh
+		default:
+			params.ReasoningEffort = shared.ReasoningEffortMedium
+		}
+	} else {
+		params.MaxTokens = openai.Int(o.providerOptions.maxTokens)
+	}
+
+	return params
 }
 
 func (o *openaiClient) send(ctx context.Context, messages []message.Message, tools []tools.BaseTool) (response *ProviderResponse, err error) {
@@ -359,3 +380,15 @@ func WithOpenAIDisableCache() OpenAIOption {
 	}
 }
 
+func WithReasoningEffort(effort string) OpenAIOption {
+	return func(options *openaiOptions) {
+		defaultReasoningEffort := "medium"
+		switch effort {
+		case "low", "medium", "high":
+			defaultReasoningEffort = effort
+		default:
+			logging.Warn("Invalid reasoning effort, using default: medium")
+		}
+		options.reasoningEffort = defaultReasoningEffort
+	}
+}

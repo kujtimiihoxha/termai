@@ -23,15 +23,14 @@ type logsPage struct {
 }
 
 func (p *logsPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		p.width = msg.Width
 		p.height = msg.Height
-		p.table.SetSize(msg.Width, msg.Height/2)
-		p.details.SetSize(msg.Width, msg.Height/2)
+		return p, p.SetSize(msg.Width, msg.Height)
 	}
 
-	var cmds []tea.Cmd
 	table, cmd := p.table.Update(msg)
 	cmds = append(cmds, cmd)
 	p.table = table.(layout.Container)
@@ -60,11 +59,13 @@ func (p *logsPage) GetSize() (int, int) {
 }
 
 // SetSize implements LogPage.
-func (p *logsPage) SetSize(width int, height int) {
+func (p *logsPage) SetSize(width int, height int) tea.Cmd {
 	p.width = width
 	p.height = height
-	p.table.SetSize(width, height/2)
-	p.details.SetSize(width, height/2)
+	return tea.Batch(
+		p.table.SetSize(width, height/2),
+		p.details.SetSize(width, height/2),
+	)
 }
 
 func (p *logsPage) Init() tea.Cmd {

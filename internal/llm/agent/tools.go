@@ -31,10 +31,9 @@ func CoderAgentTools(
 			tools.NewGlobTool(),
 			tools.NewGrepTool(),
 			tools.NewLsTool(),
-			// TODO: see if we want to use this tool
-			// tools.NewPatchTool(lspClients, permissions, history),
 			tools.NewSourcegraphTool(),
 			tools.NewViewTool(lspClients),
+			tools.NewPatchTool(lspClients, permissions, history),
 			tools.NewWriteTool(lspClients, permissions, history),
 			NewAgentTool(sessions, messages, lspClients),
 		}, otherTools...,

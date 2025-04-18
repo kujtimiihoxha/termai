@@ -192,6 +192,42 @@ func globFiles(pattern, searchPath string, limit int) ([]string, bool, error) {
 }
 
 func skipHidden(path string) bool {
+	// Check for hidden files (starting with a dot)
 	base := filepath.Base(path)
-	return base != "." && strings.HasPrefix(base, ".")
+	if base != "." && strings.HasPrefix(base, ".") {
+		return true
+	}
+
+	// List of commonly ignored directories in development projects
+	commonIgnoredDirs := map[string]bool{
+		"node_modules":     true,
+		"vendor":           true,
+		"dist":             true,
+		"build":            true,
+		"target":           true,
+		".git":             true,
+		".idea":            true,
+		".vscode":          true,
+		"__pycache__":      true,
+		"bin":              true,
+		"obj":              true,
+		"out":              true,
+		"coverage":         true,
+		"tmp":              true,
+		"temp":             true,
+		"logs":             true,
+		"generated":        true,
+		"bower_components": true,
+		"jspm_packages":    true,
+	}
+
+	// Check if any path component is in our ignore list
+	parts := strings.SplitSeq(path, string(os.PathSeparator))
+	for part := range parts {
+		if commonIgnoredDirs[part] {
+			return true
+		}
+	}
+
+	return false
 }

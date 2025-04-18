@@ -119,27 +119,17 @@ func (i *detailCmp) GetSize() (int, int) {
 	return i.width, i.height
 }
 
-func (i *detailCmp) SetSize(width int, height int) {
+func (i *detailCmp) SetSize(width int, height int) tea.Cmd {
 	i.width = width
 	i.height = height
 	i.viewport.Width = i.width
 	i.viewport.Height = i.height
 	i.updateContent()
+	return nil
 }
 
 func (i *detailCmp) BindingKeys() []key.Binding {
-	return []key.Binding{
-		i.viewport.KeyMap.PageDown,
-		i.viewport.KeyMap.PageUp,
-		i.viewport.KeyMap.HalfPageDown,
-		i.viewport.KeyMap.HalfPageUp,
-	}
-}
-
-func (i *detailCmp) BorderText() map[layout.BorderPosition]string {
-	return map[layout.BorderPosition]string{
-		layout.TopLeftBorder: "Log Details",
-	}
+	return layout.KeyMapToSlice(i.viewport.KeyMap)
 }
 
 func NewLogsDetails() DetailComponent {

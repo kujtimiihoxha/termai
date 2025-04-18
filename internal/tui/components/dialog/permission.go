@@ -36,7 +36,7 @@ type PermissionResponseMsg struct {
 type PermissionDialogCmp interface {
 	tea.Model
 	layout.Bindings
-	SetPermissions(permission permission.PermissionRequest)
+	SetPermissions(permission permission.PermissionRequest) tea.Cmd
 }
 
 type permissionsMapping struct {
@@ -98,7 +98,8 @@ func (p *permissionDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		p.windowSize = msg
-		p.SetSize()
+		cmd := p.SetSize()
+		cmds = append(cmds, cmd)
 		p.markdownCache = make(map[string]string)
 		p.diffCache = make(map[string]string)
 	case tea.KeyMsg:
@@ -267,7 +268,7 @@ func (p *permissionDialogCmp) renderEditContent() string {
 }
 
 func (p *permissionDialogCmp) renderPatchContent() string {
-	if pr, ok := p.permission.Params.(tools.PatchPermissionsParams); ok {
+	if pr, ok := p.permission.Params.(tools.EditPermissionsParams); ok {
 		diff := p.GetOrSetDiff(p.permission.ID, func() (string, error) {
 			return diff.FormatDiff(pr.Diff, diff.WithTotalWidth(p.contentViewPort.Width))
 		})
@@ -401,9 +402,9 @@ func (p *permissionDialogCmp) BindingKeys() []key.Binding {
 	return layout.KeyMapToSlice(helpKeys)
 }
 
-func (p *permissionDialogCmp) SetSize() {
+func (p *permissionDialogCmp) SetSize() tea.Cmd {
 	if p.permission.ID == "" {
-		return
+		return nil
 	}
 	switch p.permission.ToolName {
 	case tools.BashToolName:
@@ -422,11 +423,12 @@ func (p *permissionDialogCmp) SetSize() {
 		p.width = int(float64(p.windowSize.Width) * 0.7)
 		p.height = int(float64(p.windowSize.Height) * 0.5)
 	}
+	return nil
 }
 
-func (p *permissionDialogCmp) SetPermissions(permission permission.PermissionRequest) {
+func (p *permissionDialogCmp) SetPermissions(permission permission.PermissionRequest) tea.Cmd {
 	p.permission = permission
-	p.SetSize()
+	return p.SetSize()
 }
 
 // Helper to get or set cached diff content

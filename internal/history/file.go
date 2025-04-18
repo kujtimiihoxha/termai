@@ -50,6 +50,7 @@ func NewService(q *db.Queries, db *sql.DB) Service {
 	return &service{
 		Broker: pubsub.NewBroker[File](),
 		q:      q,
+		db:     db,
 	}
 }
 
@@ -100,30 +101,30 @@ func (s *service) createWithVersion(ctx context.Context, sessionID, path, conten
 	var err error
 
 	// Retry loop for transaction conflicts
-	for attempt := 0; attempt < maxRetries; attempt++ {
+	for attempt := range maxRetries {
 		// Start a transaction
-		tx, err := s.db.BeginTx(ctx, nil)
-		if err != nil {
-			return File{}, fmt.Errorf("failed to begin transaction: %w", err)
+		tx, txErr := s.db.Begin()
+		if txErr != nil {
+			return File{}, fmt.Errorf("failed to begin transaction: %w", txErr)
 		}
 
 		// Create a new queries instance with the transaction
 		qtx := s.q.WithTx(tx)
 
 		// Try to create the file within the transaction
-		dbFile, err := qtx.CreateFile(ctx, db.CreateFileParams{
+		dbFile, txErr := qtx.CreateFile(ctx, db.CreateFileParams{
 			ID:        uuid.New().String(),
 			SessionID: sessionID,
 			Path:      path,
 			Content:   content,
 			Version:   version,
 		})
-		if err != nil {
+		if txErr != nil {
 			// Rollback the transaction
 			tx.Rollback()
 
 			// Check if this is a uniqueness constraint violation
-			if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			if strings.Contains(txErr.Error(), "UNIQUE constraint failed") {
 				if attempt < maxRetries-1 {
 					// If we have retries left, generate a new version and try again
 					if strings.HasPrefix(version, "v") {
@@ -138,12 +139,12 @@ func (s *service) createWithVersion(ctx context.Context, sessionID, path, conten
 					continue
 				}
 			}
-			return File{}, err
+			return File{}, txErr
 		}
 
 		// Commit the transaction
-		if err = tx.Commit(); err != nil {
-			return File{}, fmt.Errorf("failed to commit transaction: %w", err)
+		if txErr = tx.Commit(); txErr != nil {
+			return File{}, fmt.Errorf("failed to commit transaction: %w", txErr)
 		}
 
 		file = s.fromDBItem(dbFile)

@@ -54,9 +54,11 @@ func (p *chatPage) Init() tea.Cmd {
 }
 
 func (p *chatPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		p.layout.SetSize(msg.Width, msg.Height)
+		cmd := p.layout.SetSize(msg.Width, msg.Height)
+		cmds = append(cmds, cmd)
 	case chat.SendMsg:
 		cmd := p.sendMessage(msg.Text)
 		if cmd != nil {
@@ -68,8 +70,10 @@ func (p *chatPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, keyMap.NewSession):
 			p.session = session.Session{}
-			p.clearSidebar()
-			return p, util.CmdHandler(chat.SessionClearedMsg{})
+			return p, tea.Batch(
+				p.clearSidebar(),
+				util.CmdHandler(chat.SessionClearedMsg{}),
+			)
 		case key.Matches(msg, keyMap.Cancel):
 			if p.session.ID != "" {
 				// Cancel the current session's generation process
@@ -80,11 +84,9 @@ func (p *chatPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	u, cmd := p.layout.Update(msg)
+	cmds = append(cmds, cmd)
 	p.layout = u.(layout.SplitPaneLayout)
-	if cmd != nil {
-		return p, cmd
-	}
-	return p, nil
+	return p, tea.Batch(cmds...)
 }
 
 func (p *chatPage) setSidebar() tea.Cmd {
@@ -92,16 +94,11 @@ func (p *chatPage) setSidebar() tea.Cmd {
 		chat.NewSidebarCmp(p.session, p.app.History),
 		layout.WithPadding(1, 1, 1, 1),
 	)
-	p.layout.SetRightPanel(sidebarContainer)
-	width, height := p.layout.GetSize()
-	p.layout.SetSize(width, height)
-	return sidebarContainer.Init()
+	return tea.Batch(p.layout.SetRightPanel(sidebarContainer), sidebarContainer.Init())
 }
 
-func (p *chatPage) clearSidebar() {
-	p.layout.SetRightPanel(nil)
-	width, height := p.layout.GetSize()
-	p.layout.SetSize(width, height)
+func (p *chatPage) clearSidebar() tea.Cmd {
+	return p.layout.SetRightPanel(nil)
 }
 
 func (p *chatPage) sendMessage(text string) tea.Cmd {
@@ -124,8 +121,8 @@ func (p *chatPage) sendMessage(text string) tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-func (p *chatPage) SetSize(width, height int) {
-	p.layout.SetSize(width, height)
+func (p *chatPage) SetSize(width, height int) tea.Cmd {
+	return p.layout.SetSize(width, height)
 }
 
 func (p *chatPage) GetSize() (int, int) {

@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"context"
+
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -8,6 +10,7 @@ import (
 	"github.com/kujtimiihoxha/opencode/internal/logging"
 	"github.com/kujtimiihoxha/opencode/internal/permission"
 	"github.com/kujtimiihoxha/opencode/internal/pubsub"
+	"github.com/kujtimiihoxha/opencode/internal/tui/components/chat"
 	"github.com/kujtimiihoxha/opencode/internal/tui/components/core"
 	"github.com/kujtimiihoxha/opencode/internal/tui/components/dialog"
 	"github.com/kujtimiihoxha/opencode/internal/tui/layout"
@@ -16,9 +19,10 @@ import (
 )
 
 type keyMap struct {
-	Logs key.Binding
-	Quit key.Binding
-	Help key.Binding
+	Logs          key.Binding
+	Quit          key.Binding
+	Help          key.Binding
+	SwitchSession key.Binding
 }
 
 var keys = keyMap{
@@ -34,6 +38,10 @@ var keys = keyMap{
 	Help: key.NewBinding(
 		key.WithKeys("ctrl+_"),
 		key.WithHelp("ctrl+?", "toggle help"),
+	),
+	SwitchSession: key.NewBinding(
+		key.WithKeys("ctrl+a"),
+		key.WithHelp("ctrl+a", "switch session"),
 	),
 }
 
@@ -64,6 +72,9 @@ type appModel struct {
 
 	showQuit bool
 	quit     dialog.QuitDialog
+
+	showSessionDialog bool
+	sessionDialog     dialog.SessionDialog
 }
 
 func (a appModel) Init() tea.Cmd {
@@ -76,6 +87,8 @@ func (a appModel) Init() tea.Cmd {
 	cmd = a.quit.Init()
 	cmds = append(cmds, cmd)
 	cmd = a.help.Init()
+	cmds = append(cmds, cmd)
+	cmd = a.sessionDialog.Init()
 	cmds = append(cmds, cmd)
 	return tea.Batch(cmds...)
 }
@@ -99,6 +112,10 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		help, helpCmd := a.help.Update(msg)
 		a.help = help.(dialog.HelpCmp)
 		cmds = append(cmds, helpCmd)
+
+		session, sessionCmd := a.sessionDialog.Update(msg)
+		a.sessionDialog = session.(dialog.SessionDialog)
+		cmds = append(cmds, sessionCmd)
 
 		return a, tea.Batch(cmds...)
 
@@ -144,8 +161,7 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Permission
 	case pubsub.Event[permission.PermissionRequest]:
 		a.showPermissions = true
-		a.permissions.SetPermissions(msg.Payload)
-		return a, nil
+		return a, a.permissions.SetPermissions(msg.Payload)
 	case dialog.PermissionResponseMsg:
 		switch msg.Action {
 		case dialog.PermissionAllow:
@@ -165,12 +181,43 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.showQuit = false
 		return a, nil
 
+	case dialog.CloseSessionDialogMsg:
+		a.showSessionDialog = false
+		return a, nil
+
+	case chat.SessionSelectedMsg:
+		a.sessionDialog.SetSelectedSession(msg.ID)
+	case dialog.SessionSelectedMsg:
+		a.showSessionDialog = false
+		if a.currentPage == page.ChatPage {
+			return a, util.CmdHandler(chat.SessionSelectedMsg(msg.Session))
+		}
+		return a, nil
+
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, keys.Quit):
 			a.showQuit = !a.showQuit
 			if a.showHelp {
 				a.showHelp = false
+			}
+			if a.showSessionDialog {
+				a.showSessionDialog = false
+			}
+			return a, nil
+		case key.Matches(msg, keys.SwitchSession):
+			if a.currentPage == page.ChatPage && !a.showQuit && !a.showPermissions {
+				// Load sessions and show the dialog
+				sessions, err := a.app.Sessions.List(context.Background())
+				if err != nil {
+					return a, util.ReportError(err)
+				}
+				if len(sessions) == 0 {
+					return a, util.ReportWarn("No sessions available")
+				}
+				a.sessionDialog.SetSessions(sessions)
+				a.showSessionDialog = true
+				return a, nil
 			}
 			return a, nil
 		case key.Matches(msg, logsKeyReturnKey):
@@ -216,6 +263,16 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
+	if a.showSessionDialog {
+		d, sessionCmd := a.sessionDialog.Update(msg)
+		a.sessionDialog = d.(dialog.SessionDialog)
+		cmds = append(cmds, sessionCmd)
+		// Only block key messages send all other messages down
+		if _, ok := msg.(tea.KeyMsg); ok {
+			return a, tea.Batch(cmds...)
+		}
+	}
+
 	a.status, _ = a.status.Update(msg)
 	a.pages[a.currentPage], cmd = a.pages[a.currentPage].Update(msg)
 	cmds = append(cmds, cmd)
@@ -223,18 +280,24 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a *appModel) moveToPage(pageID page.PageID) tea.Cmd {
-	var cmd tea.Cmd
+	if a.app.CoderAgent.IsBusy() {
+		// For now we don't move to any page if the agent is busy
+		return util.ReportWarn("Agent is busy, please wait...")
+	}
+	var cmds []tea.Cmd
 	if _, ok := a.loadedPages[pageID]; !ok {
-		cmd = a.pages[pageID].Init()
+		cmd := a.pages[pageID].Init()
+		cmds = append(cmds, cmd)
 		a.loadedPages[pageID] = true
 	}
 	a.previousPage = a.currentPage
 	a.currentPage = pageID
 	if sizable, ok := a.pages[a.currentPage].(layout.Sizeable); ok {
-		sizable.SetSize(a.width, a.height)
+		cmd := sizable.SetSize(a.width, a.height)
+		cmds = append(cmds, cmd)
 	}
 
-	return cmd
+	return tea.Batch(cmds...)
 }
 
 func (a appModel) View() string {
@@ -304,19 +367,35 @@ func (a appModel) View() string {
 		)
 	}
 
+	if a.showSessionDialog {
+		overlay := a.sessionDialog.View()
+		row := lipgloss.Height(appView) / 2
+		row -= lipgloss.Height(overlay) / 2
+		col := lipgloss.Width(appView) / 2
+		col -= lipgloss.Width(overlay) / 2
+		appView = layout.PlaceOverlay(
+			col,
+			row,
+			overlay,
+			appView,
+			true,
+		)
+	}
+
 	return appView
 }
 
 func New(app *app.App) tea.Model {
 	startPage := page.ChatPage
 	return &appModel{
-		currentPage: startPage,
-		loadedPages: make(map[page.PageID]bool),
-		status:      core.NewStatusCmp(app.LSPClients),
-		help:        dialog.NewHelpCmp(),
-		quit:        dialog.NewQuitCmp(),
-		permissions: dialog.NewPermissionDialogCmp(),
-		app:         app,
+		currentPage:   startPage,
+		loadedPages:   make(map[page.PageID]bool),
+		status:        core.NewStatusCmp(app.LSPClients),
+		help:          dialog.NewHelpCmp(),
+		quit:          dialog.NewQuitCmp(),
+		sessionDialog: dialog.NewSessionDialogCmp(),
+		permissions:   dialog.NewPermissionDialogCmp(),
+		app:           app,
 		pages: map[page.PageID]tea.Model{
 			page.ChatPage: page.NewChatPage(app),
 			page.LogsPage: page.NewLogsPage(),

@@ -13,12 +13,8 @@ type Focusable interface {
 	IsFocused() bool
 }
 
-type Bordered interface {
-	BorderText() map[BorderPosition]string
-}
-
 type Sizeable interface {
-	SetSize(width, height int)
+	SetSize(width, height int) tea.Cmd
 	GetSize() (int, int)
 }
 

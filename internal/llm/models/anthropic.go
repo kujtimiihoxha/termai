@@ -23,6 +23,7 @@ var AnthropicModels = map[ModelID]Model{
 		CostPer1MOutCached: 0.30,
 		CostPer1MOut:       15.0,
 		ContextWindow:      200000,
+		DefaultMaxTokens:   5000,
 	},
 	Claude3Haiku: {
 		ID:                 Claude3Haiku,
@@ -34,6 +35,7 @@ var AnthropicModels = map[ModelID]Model{
 		CostPer1MOutCached: 0.03,
 		CostPer1MOut:       1.25,
 		ContextWindow:      200000,
+		DefaultMaxTokens:   5000,
 	},
 	Claude37Sonnet: {
 		ID:                 Claude37Sonnet,
@@ -45,6 +47,8 @@ var AnthropicModels = map[ModelID]Model{
 		CostPer1MOutCached: 0.30,
 		CostPer1MOut:       15.0,
 		ContextWindow:      200000,
+		DefaultMaxTokens:   50000,
+		CanReason:          true,
 	},
 	Claude35Haiku: {
 		ID:                 Claude35Haiku,
@@ -56,6 +60,7 @@ var AnthropicModels = map[ModelID]Model{
 		CostPer1MOutCached: 0.08,
 		CostPer1MOut:       4.0,
 		ContextWindow:      200000,
+		DefaultMaxTokens:   4096,
 	},
 	Claude3Opus: {
 		ID:                 Claude3Opus,
@@ -67,5 +72,6 @@ var AnthropicModels = map[ModelID]Model{
 		CostPer1MOutCached: 1.50,
 		CostPer1MOut:       75.0,
 		ContextWindow:      200000,
+		DefaultMaxTokens:   4096,
 	},
 }

@@ -24,6 +24,11 @@ type viewTool struct {
 	lspClients map[string]*lsp.Client
 }
 
+type ViewResponseMetadata struct {
+	FilePath string `json:"file_path"`
+	Content  string `json:"content"`
+}
+
 const (
 	ViewToolName     = "view"
 	MaxReadSize      = 250 * 1024
@@ -180,7 +185,13 @@ func (v *viewTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error)
 	output += "\n</file>\n"
 	output += getDiagnostics(filePath, v.lspClients)
 	recordFileRead(filePath)
-	return NewTextResponse(output), nil
+	return WithResponseMetadata(
+		NewTextResponse(output),
+		ViewResponseMetadata{
+			FilePath: filePath,
+			Content:  content,
+		},
+	), nil
 }
 
 func addLineNumbers(content string, startLine int) string {

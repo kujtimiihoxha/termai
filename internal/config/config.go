@@ -41,8 +41,9 @@ const (
 
 // Agent defines configuration for different LLM models and their token limits.
 type Agent struct {
-	Model     models.ModelID `json:"model"`
-	MaxTokens int64          `json:"maxTokens"`
+	Model           models.ModelID `json:"model"`
+	MaxTokens       int64          `json:"maxTokens"`
+	ReasoningEffort string         `json:"reasoningEffort"` // For openai models low,medium,heigh
 }
 
 // Provider defines configuration for an LLM provider.
@@ -80,7 +81,6 @@ type Config struct {
 const (
 	defaultDataDirectory = ".opencode"
 	defaultLogLevel      = "info"
-	defaultMaxTokens     = int64(5000)
 	appName              = "opencode"
 )
 
@@ -202,9 +202,7 @@ func setProviderDefaults() {
 	if apiKey := os.Getenv("GROQ_API_KEY"); apiKey != "" {
 		viper.SetDefault("providers.groq.apiKey", apiKey)
 		viper.SetDefault("agents.coder.model", models.QWENQwq)
-		viper.SetDefault("agents.coder.maxTokens", defaultMaxTokens)
 		viper.SetDefault("agents.task.model", models.QWENQwq)
-		viper.SetDefault("agents.task.maxTokens", defaultMaxTokens)
 		viper.SetDefault("agents.title.model", models.QWENQwq)
 	}
 
@@ -212,9 +210,7 @@ func setProviderDefaults() {
 	if apiKey := os.Getenv("GEMINI_API_KEY"); apiKey != "" {
 		viper.SetDefault("providers.gemini.apiKey", apiKey)
 		viper.SetDefault("agents.coder.model", models.GRMINI20Flash)
-		viper.SetDefault("agents.coder.maxTokens", defaultMaxTokens)
 		viper.SetDefault("agents.task.model", models.GRMINI20Flash)
-		viper.SetDefault("agents.task.maxTokens", defaultMaxTokens)
 		viper.SetDefault("agents.title.model", models.GRMINI20Flash)
 	}
 
@@ -222,9 +218,7 @@ func setProviderDefaults() {
 	if apiKey := os.Getenv("OPENAI_API_KEY"); apiKey != "" {
 		viper.SetDefault("providers.openai.apiKey", apiKey)
 		viper.SetDefault("agents.coder.model", models.GPT4o)
-		viper.SetDefault("agents.coder.maxTokens", defaultMaxTokens)
 		viper.SetDefault("agents.task.model", models.GPT4o)
-		viper.SetDefault("agents.task.maxTokens", defaultMaxTokens)
 		viper.SetDefault("agents.title.model", models.GPT4o)
 
 	}
@@ -233,17 +227,13 @@ func setProviderDefaults() {
 	if apiKey := os.Getenv("ANTHROPIC_API_KEY"); apiKey != "" {
 		viper.SetDefault("providers.anthropic.apiKey", apiKey)
 		viper.SetDefault("agents.coder.model", models.Claude37Sonnet)
-		viper.SetDefault("agents.coder.maxTokens", defaultMaxTokens)
 		viper.SetDefault("agents.task.model", models.Claude37Sonnet)
-		viper.SetDefault("agents.task.maxTokens", defaultMaxTokens)
 		viper.SetDefault("agents.title.model", models.Claude37Sonnet)
 	}
 
 	if hasAWSCredentials() {
 		viper.SetDefault("agents.coder.model", models.BedrockClaude37Sonnet)
-		viper.SetDefault("agents.coder.maxTokens", defaultMaxTokens)
 		viper.SetDefault("agents.task.model", models.BedrockClaude37Sonnet)
-		viper.SetDefault("agents.task.maxTokens", defaultMaxTokens)
 		viper.SetDefault("agents.title.model", models.BedrockClaude37Sonnet)
 	}
 }

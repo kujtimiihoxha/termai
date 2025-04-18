@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/kujtimiihoxha/opencode/internal/config"
@@ -17,19 +16,13 @@ import (
 )
 
 type PatchParams struct {
-	FilePath string `json:"file_path"`
-	Patch    string `json:"patch"`
-}
-
-type PatchPermissionsParams struct {
-	FilePath string `json:"file_path"`
-	Diff     string `json:"diff"`
+	PatchText string `json:"patch_text"`
 }
 
 type PatchResponseMetadata struct {
-	Diff      string `json:"diff"`
-	Additions int    `json:"additions"`
-	Removals  int    `json:"removals"`
+	FilesChanged []string `json:"files_changed"`
+	Additions    int      `json:"additions"`
+	Removals     int      `json:"removals"`
 }
 
 type patchTool struct {
@@ -39,47 +32,35 @@ type patchTool struct {
 }
 
 const (
-	// TODO: test if this works as expected
 	PatchToolName    = "patch"
-	patchDescription = `Applies a patch to a file. This tool is similar to the edit tool but accepts a unified diff patch instead of old/new strings.
+	patchDescription = `Applies a patch to multiple files in one operation. This tool is useful for making coordinated changes across multiple files.
+
+The patch text must follow this format:
+*** Begin Patch
+*** Update File: /path/to/file
+@@ Context line (unique within the file)
+ Line to keep
+-Line to remove
++Line to add
+ Line to keep
+*** Add File: /path/to/new/file
++Content of the new file
++More content
+*** Delete File: /path/to/file/to/delete
+*** End Patch
 
 Before using this tool:
-
-1. Use the FileRead tool to understand the file's contents and context
-
-2. Verify the directory path is correct:
-   - Use the LS tool to verify the parent directory exists and is the correct location
-
-To apply a patch, provide the following:
-1. file_path: The absolute path to the file to modify (must be absolute, not relative)
-2. patch: A unified diff patch to apply to the file
-
-The tool will apply the patch to the specified file. The patch must be in unified diff format.
+1. Use the FileRead tool to understand the files' contents and context
+2. Verify all file paths are correct (use the LS tool)
 
 CRITICAL REQUIREMENTS FOR USING THIS TOOL:
 
-1. PATCH FORMAT: The patch must be in unified diff format, which includes:
-   - File headers (--- a/file_path, +++ b/file_path)
-   - Hunk headers (@@ -start,count +start,count @@)
-   - Added lines (prefixed with +)
-   - Removed lines (prefixed with -)
+1. UNIQUENESS: Context lines MUST uniquely identify the specific sections you want to change
+2. PRECISION: All whitespace, indentation, and surrounding code must match exactly
+3. VALIDATION: Ensure edits result in idiomatic, correct code
+4. PATHS: Always use absolute file paths (starting with /)
 
-2. CONTEXT: The patch must include sufficient context around the changes to ensure it applies correctly.
-
-3. VERIFICATION: Before using this tool:
-   - Ensure the patch applies cleanly to the current state of the file
-   - Check that the file exists and you have read it first
-
-WARNING: If you do not follow these requirements:
-   - The tool will fail if the patch doesn't apply cleanly
-   - You may change the wrong parts of the file if the context is insufficient
-
-When applying patches:
-   - Ensure the patch results in idiomatic, correct code
-   - Do not leave the code in a broken state
-   - Always use absolute file paths (starting with /)
-
-Remember: patches are a powerful way to make multiple related changes at once, but they require careful preparation.`
+The tool will apply all changes in a single atomic operation.`
 )
 
 func NewPatchTool(lspClients map[string]*lsp.Client, permissions permission.Service, files history.Service) BaseTool {
@@ -95,16 +76,12 @@ func (p *patchTool) Info() ToolInfo {
 		Name:        PatchToolName,
 		Description: patchDescription,
 		Parameters: map[string]any{
-			"file_path": map[string]any{
+			"patch_text": map[string]any{
 				"type":        "string",
-				"description": "The absolute path to the file to modify",
-			},
-			"patch": map[string]any{
-				"type":        "string",
-				"description": "The unified diff patch to apply",
+				"description": "The full patch text that describes all changes to be made",
 			},
 		},
-		Required: []string{"file_path", "patch"},
+		Required: []string{"patch_text"},
 	}
 }
 
@@ -114,187 +91,278 @@ func (p *patchTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error
 		return NewTextErrorResponse("invalid parameters"), nil
 	}
 
-	if params.FilePath == "" {
-		return NewTextErrorResponse("file_path is required"), nil
+	if params.PatchText == "" {
+		return NewTextErrorResponse("patch_text is required"), nil
 	}
 
-	if params.Patch == "" {
-		return NewTextErrorResponse("patch is required"), nil
-	}
-
-	if !filepath.IsAbs(params.FilePath) {
-		wd := config.WorkingDirectory()
-		params.FilePath = filepath.Join(wd, params.FilePath)
-	}
-
-	// Check if file exists
-	fileInfo, err := os.Stat(params.FilePath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return NewTextErrorResponse(fmt.Sprintf("file not found: %s", params.FilePath)), nil
+	// Identify all files needed for the patch and verify they've been read
+	filesToRead := diff.IdentifyFilesNeeded(params.PatchText)
+	for _, filePath := range filesToRead {
+		absPath := filePath
+		if !filepath.IsAbs(absPath) {
+			wd := config.WorkingDirectory()
+			absPath = filepath.Join(wd, absPath)
 		}
-		return ToolResponse{}, fmt.Errorf("failed to access file: %w", err)
+
+		if getLastReadTime(absPath).IsZero() {
+			return NewTextErrorResponse(fmt.Sprintf("you must read the file %s before patching it. Use the FileRead tool first", filePath)), nil
+		}
+
+		fileInfo, err := os.Stat(absPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return NewTextErrorResponse(fmt.Sprintf("file not found: %s", absPath)), nil
+			}
+			return ToolResponse{}, fmt.Errorf("failed to access file: %w", err)
+		}
+
+		if fileInfo.IsDir() {
+			return NewTextErrorResponse(fmt.Sprintf("path is a directory, not a file: %s", absPath)), nil
+		}
+
+		modTime := fileInfo.ModTime()
+		lastRead := getLastReadTime(absPath)
+		if modTime.After(lastRead) {
+			return NewTextErrorResponse(
+				fmt.Sprintf("file %s has been modified since it was last read (mod time: %s, last read: %s)",
+					absPath, modTime.Format(time.RFC3339), lastRead.Format(time.RFC3339),
+				)), nil
+		}
 	}
 
-	if fileInfo.IsDir() {
-		return NewTextErrorResponse(fmt.Sprintf("path is a directory, not a file: %s", params.FilePath)), nil
+	// Check for new files to ensure they don't already exist
+	filesToAdd := diff.IdentifyFilesAdded(params.PatchText)
+	for _, filePath := range filesToAdd {
+		absPath := filePath
+		if !filepath.IsAbs(absPath) {
+			wd := config.WorkingDirectory()
+			absPath = filepath.Join(wd, absPath)
+		}
+
+		_, err := os.Stat(absPath)
+		if err == nil {
+			return NewTextErrorResponse(fmt.Sprintf("file already exists and cannot be added: %s", absPath)), nil
+		} else if !os.IsNotExist(err) {
+			return ToolResponse{}, fmt.Errorf("failed to check file: %w", err)
+		}
 	}
 
-	if getLastReadTime(params.FilePath).IsZero() {
-		return NewTextErrorResponse("you must read the file before patching it. Use the View tool first"), nil
+	// Load all required files
+	currentFiles := make(map[string]string)
+	for _, filePath := range filesToRead {
+		absPath := filePath
+		if !filepath.IsAbs(absPath) {
+			wd := config.WorkingDirectory()
+			absPath = filepath.Join(wd, absPath)
+		}
+
+		content, err := os.ReadFile(absPath)
+		if err != nil {
+			return ToolResponse{}, fmt.Errorf("failed to read file %s: %w", absPath, err)
+		}
+		currentFiles[filePath] = string(content)
 	}
 
-	modTime := fileInfo.ModTime()
-	lastRead := getLastReadTime(params.FilePath)
-	if modTime.After(lastRead) {
-		return NewTextErrorResponse(
-			fmt.Sprintf("file %s has been modified since it was last read (mod time: %s, last read: %s)",
-				params.FilePath, modTime.Format(time.RFC3339), lastRead.Format(time.RFC3339),
-			)), nil
-	}
-
-	// Read the current file content
-	content, err := os.ReadFile(params.FilePath)
+	// Process the patch
+	patch, fuzz, err := diff.TextToPatch(params.PatchText, currentFiles)
 	if err != nil {
-		return ToolResponse{}, fmt.Errorf("failed to read file: %w", err)
+		return NewTextErrorResponse(fmt.Sprintf("failed to parse patch: %s", err)), nil
 	}
 
-	oldContent := string(content)
+	if fuzz > 0 {
+		return NewTextErrorResponse(fmt.Sprintf("patch contains fuzzy matches (fuzz level: %d). Please make your context lines more precise", fuzz)), nil
+	}
 
-	// Parse and apply the patch
-	diffResult, err := diff.ParseUnifiedDiff(params.Patch)
+	// Convert patch to commit
+	commit, err := diff.PatchToCommit(patch, currentFiles)
 	if err != nil {
-		return NewTextErrorResponse(fmt.Sprintf("failed to parse patch: %v", err)), nil
+		return NewTextErrorResponse(fmt.Sprintf("failed to create commit from patch: %s", err)), nil
 	}
 
-	// Apply the patch to get the new content
-	newContent, err := applyPatch(oldContent, diffResult)
-	if err != nil {
-		return NewTextErrorResponse(fmt.Sprintf("failed to apply patch: %v", err)), nil
-	}
-
-	if oldContent == newContent {
-		return NewTextErrorResponse("patch did not result in any changes to the file"), nil
-	}
-
+	// Get session ID and message ID
 	sessionID, messageID := GetContextValues(ctx)
 	if sessionID == "" || messageID == "" {
-		return ToolResponse{}, fmt.Errorf("session ID and message ID are required for patching a file")
+		return ToolResponse{}, fmt.Errorf("session ID and message ID are required for creating a patch")
 	}
 
-	// Generate a diff for permission request and metadata
-	diffText, additions, removals := diff.GenerateDiff(
-		oldContent,
-		newContent,
-		params.FilePath,
-	)
-
-	// Request permission to apply the patch
-	p.permissions.Request(
-		permission.CreatePermissionRequest{
-			Path:        filepath.Dir(params.FilePath),
-			ToolName:    PatchToolName,
-			Action:      "patch",
-			Description: fmt.Sprintf("Apply patch to file %s", params.FilePath),
-			Params: PatchPermissionsParams{
-				FilePath: params.FilePath,
-				Diff:     diffText,
-			},
-		},
-	)
-
-	// Write the new content to the file
-	err = os.WriteFile(params.FilePath, []byte(newContent), 0o644)
-	if err != nil {
-		return ToolResponse{}, fmt.Errorf("failed to write file: %w", err)
-	}
-
-	// Update file history
-	file, err := p.files.GetByPathAndSession(ctx, params.FilePath, sessionID)
-	if err != nil {
-		_, err = p.files.Create(ctx, sessionID, params.FilePath, oldContent)
-		if err != nil {
-			return ToolResponse{}, fmt.Errorf("error creating file history: %w", err)
+	// Request permission for all changes
+	for path, change := range commit.Changes {
+		switch change.Type {
+		case diff.ActionAdd:
+			dir := filepath.Dir(path)
+			patchDiff, _, _ := diff.GenerateDiff("", *change.NewContent, path)
+			p := p.permissions.Request(
+				permission.CreatePermissionRequest{
+					Path:        dir,
+					ToolName:    PatchToolName,
+					Action:      "create",
+					Description: fmt.Sprintf("Create file %s", path),
+					Params: EditPermissionsParams{
+						FilePath: path,
+						Diff:     patchDiff,
+					},
+				},
+			)
+			if !p {
+				return ToolResponse{}, permission.ErrorPermissionDenied
+			}
+		case diff.ActionUpdate:
+			currentContent := ""
+			if change.OldContent != nil {
+				currentContent = *change.OldContent
+			}
+			newContent := ""
+			if change.NewContent != nil {
+				newContent = *change.NewContent
+			}
+			patchDiff, _, _ := diff.GenerateDiff(currentContent, newContent, path)
+			dir := filepath.Dir(path)
+			p := p.permissions.Request(
+				permission.CreatePermissionRequest{
+					Path:        dir,
+					ToolName:    PatchToolName,
+					Action:      "update",
+					Description: fmt.Sprintf("Update file %s", path),
+					Params: EditPermissionsParams{
+						FilePath: path,
+						Diff:     patchDiff,
+					},
+				},
+			)
+			if !p {
+				return ToolResponse{}, permission.ErrorPermissionDenied
+			}
+		case diff.ActionDelete:
+			dir := filepath.Dir(path)
+			patchDiff, _, _ := diff.GenerateDiff(*change.OldContent, "", path)
+			p := p.permissions.Request(
+				permission.CreatePermissionRequest{
+					Path:        dir,
+					ToolName:    PatchToolName,
+					Action:      "delete",
+					Description: fmt.Sprintf("Delete file %s", path),
+					Params: EditPermissionsParams{
+						FilePath: path,
+						Diff:     patchDiff,
+					},
+				},
+			)
+			if !p {
+				return ToolResponse{}, permission.ErrorPermissionDenied
+			}
 		}
 	}
-	if file.Content != oldContent {
-		// User manually changed the content, store an intermediate version
-		_, err = p.files.CreateVersion(ctx, sessionID, params.FilePath, oldContent)
+
+	// Apply the changes to the filesystem
+	err = diff.ApplyCommit(commit, func(path string, content string) error {
+		absPath := path
+		if !filepath.IsAbs(absPath) {
+			wd := config.WorkingDirectory()
+			absPath = filepath.Join(wd, absPath)
+		}
+
+		// Create parent directories if needed
+		dir := filepath.Dir(absPath)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("failed to create parent directories for %s: %w", absPath, err)
+		}
+
+		return os.WriteFile(absPath, []byte(content), 0o644)
+	}, func(path string) error {
+		absPath := path
+		if !filepath.IsAbs(absPath) {
+			wd := config.WorkingDirectory()
+			absPath = filepath.Join(wd, absPath)
+		}
+		return os.Remove(absPath)
+	})
+	if err != nil {
+		return NewTextErrorResponse(fmt.Sprintf("failed to apply patch: %s", err)), nil
+	}
+
+	// Update file history for all modified files
+	changedFiles := []string{}
+	totalAdditions := 0
+	totalRemovals := 0
+
+	for path, change := range commit.Changes {
+		absPath := path
+		if !filepath.IsAbs(absPath) {
+			wd := config.WorkingDirectory()
+			absPath = filepath.Join(wd, absPath)
+		}
+		changedFiles = append(changedFiles, absPath)
+
+		oldContent := ""
+		if change.OldContent != nil {
+			oldContent = *change.OldContent
+		}
+
+		newContent := ""
+		if change.NewContent != nil {
+			newContent = *change.NewContent
+		}
+
+		// Calculate diff statistics
+		_, additions, removals := diff.GenerateDiff(oldContent, newContent, path)
+		totalAdditions += additions
+		totalRemovals += removals
+
+		// Update history
+		file, err := p.files.GetByPathAndSession(ctx, absPath, sessionID)
+		if err != nil && change.Type != diff.ActionAdd {
+			// If not adding a file, create history entry for existing file
+			_, err = p.files.Create(ctx, sessionID, absPath, oldContent)
+			if err != nil {
+				fmt.Printf("Error creating file history: %v\n", err)
+			}
+		}
+
+		if err == nil && change.Type != diff.ActionAdd && file.Content != oldContent {
+			// User manually changed content, store intermediate version
+			_, err = p.files.CreateVersion(ctx, sessionID, absPath, oldContent)
+			if err != nil {
+				fmt.Printf("Error creating file history version: %v\n", err)
+			}
+		}
+
+		// Store new version
+		if change.Type == diff.ActionDelete {
+			_, err = p.files.CreateVersion(ctx, sessionID, absPath, "")
+		} else {
+			_, err = p.files.CreateVersion(ctx, sessionID, absPath, newContent)
+		}
 		if err != nil {
 			fmt.Printf("Error creating file history version: %v\n", err)
 		}
-	}
-	// Store the new version
-	_, err = p.files.CreateVersion(ctx, sessionID, params.FilePath, newContent)
-	if err != nil {
-		fmt.Printf("Error creating file history version: %v\n", err)
+
+		// Record file operations
+		recordFileWrite(absPath)
+		recordFileRead(absPath)
 	}
 
-	recordFileWrite(params.FilePath)
-	recordFileRead(params.FilePath)
+	// Run LSP diagnostics on all changed files
+	for _, filePath := range changedFiles {
+		waitForLspDiagnostics(ctx, filePath, p.lspClients)
+	}
 
-	// Wait for LSP diagnostics and include them in the response
-	waitForLspDiagnostics(ctx, params.FilePath, p.lspClients)
-	text := fmt.Sprintf("<r>\nPatch applied to file: %s\n</r>\n", params.FilePath)
-	text += getDiagnostics(params.FilePath, p.lspClients)
+	result := fmt.Sprintf("Patch applied successfully. %d files changed, %d additions, %d removals",
+		len(changedFiles), totalAdditions, totalRemovals)
+
+	diagnosticsText := ""
+	for _, filePath := range changedFiles {
+		diagnosticsText += getDiagnostics(filePath, p.lspClients)
+	}
+
+	if diagnosticsText != "" {
+		result += "\n\nDiagnostics:\n" + diagnosticsText
+	}
 
 	return WithResponseMetadata(
-		NewTextResponse(text),
+		NewTextResponse(result),
 		PatchResponseMetadata{
-			Diff:      diffText,
-			Additions: additions,
-			Removals:  removals,
+			FilesChanged: changedFiles,
+			Additions:    totalAdditions,
+			Removals:     totalRemovals,
 		}), nil
 }
-
-// applyPatch applies a parsed diff to a string and returns the resulting content
-func applyPatch(content string, diffResult diff.DiffResult) (string, error) {
-	lines := strings.Split(content, "\n")
-
-	// Process each hunk in the diff
-	for _, hunk := range diffResult.Hunks {
-		// Parse the hunk header to get line numbers
-		var oldStart, oldCount, newStart, newCount int
-		_, err := fmt.Sscanf(hunk.Header, "@@ -%d,%d +%d,%d @@", &oldStart, &oldCount, &newStart, &newCount)
-		if err != nil {
-			// Try alternative format with single line counts
-			_, err = fmt.Sscanf(hunk.Header, "@@ -%d +%d @@", &oldStart, &newStart)
-			if err != nil {
-				return "", fmt.Errorf("invalid hunk header format: %s", hunk.Header)
-			}
-			oldCount = 1
-			newCount = 1
-		}
-
-		// Adjust for 0-based array indexing
-		oldStart--
-		newStart--
-
-		// Apply the changes
-		newLines := make([]string, 0)
-		newLines = append(newLines, lines[:oldStart]...)
-
-		// Process the hunk lines in order
-		currentOldLine := oldStart
-		for _, line := range hunk.Lines {
-			switch line.Kind {
-			case diff.LineContext:
-				newLines = append(newLines, line.Content)
-				currentOldLine++
-			case diff.LineRemoved:
-				// Skip this line in the output (it's being removed)
-				currentOldLine++
-			case diff.LineAdded:
-				// Add the new line
-				newLines = append(newLines, line.Content)
-			}
-		}
-
-		// Append the rest of the file
-		newLines = append(newLines, lines[currentOldLine:]...)
-		lines = newLines
-	}
-
-	return strings.Join(lines, "\n"), nil
-}
-

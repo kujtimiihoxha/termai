@@ -68,7 +68,7 @@ func (i *tableCmp) GetSize() (int, int) {
 	return i.table.Width(), i.table.Height()
 }
 
-func (i *tableCmp) SetSize(width int, height int) {
+func (i *tableCmp) SetSize(width int, height int) tea.Cmd {
 	i.table.SetWidth(width)
 	i.table.SetHeight(height)
 	cloumns := i.table.Columns()
@@ -77,6 +77,7 @@ func (i *tableCmp) SetSize(width int, height int) {
 		cloumns[i] = col
 	}
 	i.table.SetColumns(cloumns)
+	return nil
 }
 
 func (i *tableCmp) BindingKeys() []key.Binding {

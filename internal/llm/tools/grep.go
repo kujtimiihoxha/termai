@@ -17,9 +17,10 @@ import (
 )
 
 type GrepParams struct {
-	Pattern string `json:"pattern"`
-	Path    string `json:"path"`
-	Include string `json:"include"`
+	Pattern     string `json:"pattern"`
+	Path        string `json:"path"`
+	Include     string `json:"include"`
+	LiteralText bool   `json:"literal_text"`
 }
 
 type grepMatch struct {
@@ -45,11 +46,12 @@ WHEN TO USE THIS TOOL:
 
 HOW TO USE:
 - Provide a regex pattern to search for within file contents
+- Set literal_text=true if you want to search for the exact text with special characters (recommended for non-regex users)
 - Optionally specify a starting directory (defaults to current working directory)
 - Optionally provide an include pattern to filter which files to search
 - Results are sorted with most recently modified files first
 
-REGEX PATTERN SYNTAX:
+REGEX PATTERN SYNTAX (when literal_text=false):
 - Supports standard regular expression syntax
 - 'function' searches for the literal text "function"
 - 'log\..*Error' finds text starting with "log." and ending with "Error"
@@ -69,7 +71,8 @@ LIMITATIONS:
 TIPS:
 - For faster, more targeted searches, first use Glob to find relevant files, then use Grep
 - When doing iterative exploration that may require multiple rounds of searching, consider using the Agent tool instead
-- Always check if results are truncated and refine your search pattern if needed`
+- Always check if results are truncated and refine your search pattern if needed
+- Use literal_text=true when searching for exact text containing special characters like dots, parentheses, etc.`
 )
 
 func NewGrepTool() BaseTool {
@@ -93,9 +96,25 @@ func (g *grepTool) Info() ToolInfo {
 				"type":        "string",
 				"description": "File pattern to include in the search (e.g. \"*.js\", \"*.{ts,tsx}\")",
 			},
+			"literal_text": map[string]any{
+				"type":        "boolean",
+				"description": "If true, the pattern will be treated as literal text with special regex characters escaped. Default is false.",
+			},
 		},
 		Required: []string{"pattern"},
 	}
+}
+
+// escapeRegexPattern escapes special regex characters so they're treated as literal characters
+func escapeRegexPattern(pattern string) string {
+	specialChars := []string{"\\", ".", "+", "*", "?", "(", ")", "[", "]", "{", "}", "^", "$", "|"}
+	escaped := pattern
+
+	for _, char := range specialChars {
+		escaped = strings.ReplaceAll(escaped, char, "\\"+char)
+	}
+
+	return escaped
 }
 
 func (g *grepTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error) {
@@ -108,12 +127,18 @@ func (g *grepTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error)
 		return NewTextErrorResponse("pattern is required"), nil
 	}
 
+	// If literal_text is true, escape the pattern
+	searchPattern := params.Pattern
+	if params.LiteralText {
+		searchPattern = escapeRegexPattern(params.Pattern)
+	}
+
 	searchPath := params.Path
 	if searchPath == "" {
 		searchPath = config.WorkingDirectory()
 	}
 
-	matches, truncated, err := searchFiles(params.Pattern, searchPath, params.Include, 100)
+	matches, truncated, err := searchFiles(searchPattern, searchPath, params.Include, 100)
 	if err != nil {
 		return ToolResponse{}, fmt.Errorf("error searching files: %w", err)
 	}

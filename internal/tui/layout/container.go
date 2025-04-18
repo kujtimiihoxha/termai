@@ -86,7 +86,7 @@ func (c *container) View() string {
 	return style.Render(c.content.View())
 }
 
-func (c *container) SetSize(width, height int) {
+func (c *container) SetSize(width, height int) tea.Cmd {
 	c.width = width
 	c.height = height
 
@@ -113,8 +113,9 @@ func (c *container) SetSize(width, height int) {
 		// Set content size with adjusted dimensions
 		contentWidth := max(0, width-horizontalSpace)
 		contentHeight := max(0, height-verticalSpace)
-		sizeable.SetSize(contentWidth, contentHeight)
+		return sizeable.SetSize(contentWidth, contentHeight)
 	}
+	return nil
 }
 
 func (c *container) GetSize() (int, int) {

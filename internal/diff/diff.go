@@ -79,8 +79,9 @@ type linePair struct {
 
 // StyleConfig defines styling for diff rendering
 type StyleConfig struct {
-	ShowHeader bool
-	FileNameFg lipgloss.Color
+	ShowHeader     bool
+	ShowHunkHeader bool
+	FileNameFg     lipgloss.Color
 	// Background colors
 	RemovedLineBg       lipgloss.Color
 	AddedLineBg         lipgloss.Color
@@ -111,7 +112,8 @@ func NewStyleConfig(opts ...StyleOption) StyleConfig {
 	// Default color scheme
 	config := StyleConfig{
 		ShowHeader:          true,
-		FileNameFg:          lipgloss.Color("#fab283"),
+		ShowHunkHeader:      true,
+		FileNameFg:          lipgloss.Color("#a0a0a0"),
 		RemovedLineBg:       lipgloss.Color("#3A3030"),
 		AddedLineBg:         lipgloss.Color("#303A30"),
 		ContextLineBg:       lipgloss.Color("#212121"),
@@ -202,6 +204,10 @@ func WithHunkLineFg(color lipgloss.Color) StyleOption {
 
 func WithShowHeader(show bool) StyleOption {
 	return func(s *StyleConfig) { s.ShowHeader = show }
+}
+
+func WithShowHunkHeader(show bool) StyleOption {
+	return func(s *StyleConfig) { s.ShowHunkHeader = show }
 }
 
 // -------------------------------------------------------------------------
@@ -914,13 +920,15 @@ func FormatDiff(diffText string, opts ...SideBySideOption) (string, error) {
 
 	for _, h := range diffResult.Hunks {
 		// Render hunk header
-		sb.WriteString(
-			lipgloss.NewStyle().
-				Background(config.Style.HunkLineBg).
-				Foreground(config.Style.HunkLineFg).
-				Width(config.TotalWidth).
-				Render(h.Header) + "\n",
-		)
+		if config.Style.ShowHunkHeader {
+			sb.WriteString(
+				lipgloss.NewStyle().
+					Background(config.Style.HunkLineBg).
+					Foreground(config.Style.HunkLineFg).
+					Width(config.TotalWidth).
+					Render(h.Header) + "\n",
+			)
+		}
 		sb.WriteString(RenderSideBySideHunk(diffResult.OldFile, h, opts...))
 	}
 

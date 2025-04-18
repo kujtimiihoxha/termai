@@ -1,6 +1,9 @@
 package chat
 
 import (
+	"os"
+	"os/exec"
+
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
@@ -19,13 +22,15 @@ type editorCmp struct {
 }
 
 type focusedEditorKeyMaps struct {
-	Send key.Binding
-	Blur key.Binding
+	Send       key.Binding
+	OpenEditor key.Binding
+	Blur       key.Binding
 }
 
 type bluredEditorKeyMaps struct {
-	Send  key.Binding
-	Focus key.Binding
+	Send       key.Binding
+	Focus      key.Binding
+	OpenEditor key.Binding
 }
 
 var focusedKeyMaps = focusedEditorKeyMaps{
@@ -36,6 +41,10 @@ var focusedKeyMaps = focusedEditorKeyMaps{
 	Blur: key.NewBinding(
 		key.WithKeys("esc"),
 		key.WithHelp("esc", "focus messages"),
+	),
+	OpenEditor: key.NewBinding(
+		key.WithKeys("ctrl+e"),
+		key.WithHelp("ctrl+e", "open editor"),
 	),
 }
 
@@ -48,6 +57,40 @@ var bluredKeyMaps = bluredEditorKeyMaps{
 		key.WithKeys("i"),
 		key.WithHelp("i", "focus editor"),
 	),
+	OpenEditor: key.NewBinding(
+		key.WithKeys("ctrl+e"),
+		key.WithHelp("ctrl+e", "open editor"),
+	),
+}
+
+func openEditor() tea.Cmd {
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
+		editor = "nvim"
+	}
+
+	tmpfile, err := os.CreateTemp("", "msg_*.md")
+	if err != nil {
+		return util.ReportError(err)
+	}
+	tmpfile.Close()
+	c := exec.Command(editor, tmpfile.Name()) //nolint:gosec
+	c.Stdin = os.Stdin
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stderr
+	return tea.ExecProcess(c, func(err error) tea.Msg {
+		if err != nil {
+			return util.ReportError(err)
+		}
+		content, err := os.ReadFile(tmpfile.Name())
+		if err != nil {
+			return util.ReportError(err)
+		}
+		os.Remove(tmpfile.Name())
+		return SendMsg{
+			Text: string(content),
+		}
+	})
 }
 
 func (m *editorCmp) Init() tea.Cmd {
@@ -82,6 +125,10 @@ func (m *editorCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case tea.KeyMsg:
+		if key.Matches(msg, focusedKeyMaps.OpenEditor) {
+			m.textarea.Blur()
+			return m, openEditor()
+		}
 		// if the key does not match any binding, return
 		if m.textarea.Focused() && key.Matches(msg, focusedKeyMaps.Send) {
 			return m, m.send()
@@ -108,9 +155,10 @@ func (m *editorCmp) View() string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, style.Render(">"), m.textarea.View())
 }
 
-func (m *editorCmp) SetSize(width, height int) {
+func (m *editorCmp) SetSize(width, height int) tea.Cmd {
 	m.textarea.SetWidth(width - 3) // account for the prompt and padding right
 	m.textarea.SetHeight(height)
+	return nil
 }
 
 func (m *editorCmp) GetSize() (int, int) {

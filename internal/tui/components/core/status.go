@@ -166,19 +166,31 @@ func (m *statusCmp) projectDiagnostics() string {
 	diagnostics := []string{}
 
 	if len(errorDiagnostics) > 0 {
-		errStr := lipgloss.NewStyle().Foreground(styles.Error).Render(fmt.Sprintf("%s %d", styles.ErrorIcon, len(errorDiagnostics)))
+		errStr := lipgloss.NewStyle().
+			Background(styles.BackgroundDarker).
+			Foreground(styles.Error).
+			Render(fmt.Sprintf("%s %d", styles.ErrorIcon, len(errorDiagnostics)))
 		diagnostics = append(diagnostics, errStr)
 	}
 	if len(warnDiagnostics) > 0 {
-		warnStr := lipgloss.NewStyle().Foreground(styles.Warning).Render(fmt.Sprintf("%s %d", styles.WarningIcon, len(warnDiagnostics)))
+		warnStr := lipgloss.NewStyle().
+			Background(styles.BackgroundDarker).
+			Foreground(styles.Warning).
+			Render(fmt.Sprintf("%s %d", styles.WarningIcon, len(warnDiagnostics)))
 		diagnostics = append(diagnostics, warnStr)
 	}
 	if len(hintDiagnostics) > 0 {
-		hintStr := lipgloss.NewStyle().Foreground(styles.Text).Render(fmt.Sprintf("%s %d", styles.HintIcon, len(hintDiagnostics)))
+		hintStr := lipgloss.NewStyle().
+			Background(styles.BackgroundDarker).
+			Foreground(styles.Text).
+			Render(fmt.Sprintf("%s %d", styles.HintIcon, len(hintDiagnostics)))
 		diagnostics = append(diagnostics, hintStr)
 	}
 	if len(infoDiagnostics) > 0 {
-		infoStr := lipgloss.NewStyle().Foreground(styles.Peach).Render(fmt.Sprintf("%s %d", styles.InfoIcon, len(infoDiagnostics)))
+		infoStr := lipgloss.NewStyle().
+			Background(styles.BackgroundDarker).
+			Foreground(styles.Peach).
+			Render(fmt.Sprintf("%s %d", styles.InfoIcon, len(infoDiagnostics)))
 		diagnostics = append(diagnostics, infoStr)
 	}
 
@@ -187,10 +199,12 @@ func (m *statusCmp) projectDiagnostics() string {
 
 func (m statusCmp) availableFooterMsgWidth(diagnostics string) int {
 	tokens := ""
+	tokensWidth := 0
 	if m.session.ID != "" {
 		tokens = formatTokensAndCost(m.session.PromptTokens+m.session.CompletionTokens, m.session.Cost)
+		tokensWidth = lipgloss.Width(tokens) + 2
 	}
-	return max(0, m.width-lipgloss.Width(helpWidget)-lipgloss.Width(m.model())-lipgloss.Width(diagnostics)-lipgloss.Width(tokens))
+	return max(0, m.width-lipgloss.Width(helpWidget)-lipgloss.Width(m.model())-lipgloss.Width(diagnostics)-tokensWidth)
 }
 
 func (m statusCmp) model() string {

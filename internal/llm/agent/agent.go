@@ -41,6 +41,7 @@ type Service interface {
 	Run(ctx context.Context, sessionID string, content string) (<-chan AgentEvent, error)
 	Cancel(sessionID string)
 	IsSessionBusy(sessionID string) bool
+	IsBusy() bool
 }
 
 type agent struct {
@@ -93,6 +94,20 @@ func (a *agent) Cancel(sessionID string) {
 			cancel()
 		}
 	}
+}
+
+func (a *agent) IsBusy() bool {
+	busy := false
+	a.activeRequests.Range(func(key, value interface{}) bool {
+		if cancelFunc, ok := value.(context.CancelFunc); ok {
+			if cancelFunc != nil {
+				busy = true
+				return false // Stop iterating
+			}
+		}
+		return true // Continue iterating
+	})
+	return busy
 }
 
 func (a *agent) IsSessionBusy(sessionID string) bool {
@@ -313,23 +328,8 @@ func (a *agent) streamAndHandleEvents(ctx context.Context, sessionID string, msg
 						}
 					}
 					a.finishMessage(ctx, &assistantMsg, message.FinishReasonPermissionDenied)
-				} else {
-					toolResults[i] = message.ToolResult{
-						ToolCallID: toolCall.ID,
-						Content:    toolErr.Error(),
-						IsError:    true,
-					}
-					for j := i; j < len(toolCalls); j++ {
-						toolResults[j] = message.ToolResult{
-							ToolCallID: toolCalls[j].ID,
-							Content:    "Previous tool failed",
-							IsError:    true,
-						}
-					}
-					a.finishMessage(ctx, &assistantMsg, message.FinishReasonError)
+					break
 				}
-				// If permission is denied or an error happens we cancel all the following tools
-				break
 			}
 			toolResults[i] = message.ToolResult{
 				ToolCallID: toolCall.ID,
@@ -437,12 +437,27 @@ func createAgentProvider(agentName config.AgentName) (provider.Provider, error) 
 	if providerCfg.Disabled {
 		return nil, fmt.Errorf("provider %s is not enabled", model.Provider)
 	}
-	agentProvider, err := provider.NewProvider(
-		model.Provider,
+	maxTokens := model.DefaultMaxTokens
+	if agentConfig.MaxTokens > 0 {
+		maxTokens = agentConfig.MaxTokens
+	}
+	opts := []provider.ProviderClientOption{
 		provider.WithAPIKey(providerCfg.APIKey),
 		provider.WithModel(model),
 		provider.WithSystemMessage(prompt.GetAgentPrompt(agentName, model.Provider)),
-		provider.WithMaxTokens(agentConfig.MaxTokens),
+		provider.WithMaxTokens(maxTokens),
+	}
+	if model.Provider == models.ProviderOpenAI && model.CanReason {
+		opts = append(
+			opts,
+			provider.WithOpenAIOptions(
+				provider.WithReasoningEffort(agentConfig.ReasoningEffort),
+			),
+		)
+	}
+	agentProvider, err := provider.NewProvider(
+		model.Provider,
+		opts...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("could not create provider: %v", err)

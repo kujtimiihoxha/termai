@@ -17,15 +17,12 @@ type Model struct {
 	CostPer1MInCached  float64       `json:"cost_per_1m_in_cached"`
 	CostPer1MOutCached float64       `json:"cost_per_1m_out_cached"`
 	ContextWindow      int64         `json:"context_window"`
+	DefaultMaxTokens   int64         `json:"default_max_tokens"`
+	CanReason          bool          `json:"can_reason"`
 }
 
 // Model IDs
-const (
-	// OpenAI
-	GPT4o ModelID = "gpt-4o"
-	GPT41 ModelID = "gpt-4.1"
-
-	// GEMINI
+const ( // GEMINI
 	GEMINI25      ModelID = "gemini-2.5"
 	GRMINI20Flash ModelID = "gemini-2.0-flash"
 
@@ -37,7 +34,6 @@ const (
 )
 
 const (
-	ProviderOpenAI  ModelProvider = "openai"
 	ProviderBedrock ModelProvider = "bedrock"
 	ProviderGemini  ModelProvider = "gemini"
 	ProviderGROQ    ModelProvider = "groq"
@@ -47,59 +43,6 @@ const (
 )
 
 var SupportedModels = map[ModelID]Model{
-	// // Anthropic
-	// Claude35Sonnet: {
-	// 	ID:                 Claude35Sonnet,
-	// 	Name:               "Claude 3.5 Sonnet",
-	// 	Provider:           ProviderAnthropic,
-	// 	APIModel:           "claude-3-5-sonnet-latest",
-	// 	CostPer1MIn:        3.0,
-	// 	CostPer1MInCached:  3.75,
-	// 	CostPer1MOutCached: 0.30,
-	// 	CostPer1MOut:       15.0,
-	// },
-	// Claude3Haiku: {
-	// 	ID:                 Claude3Haiku,
-	// 	Name:               "Claude 3 Haiku",
-	// 	Provider:           ProviderAnthropic,
-	// 	APIModel:           "claude-3-haiku-latest",
-	// 	CostPer1MIn:        0.80,
-	// 	CostPer1MInCached:  1,
-	// 	CostPer1MOutCached: 0.08,
-	// 	CostPer1MOut:       4,
-	// },
-	// Claude37Sonnet: {
-	// 	ID:                 Claude37Sonnet,
-	// 	Name:               "Claude 3.7 Sonnet",
-	// 	Provider:           ProviderAnthropic,
-	// 	APIModel:           "claude-3-7-sonnet-latest",
-	// 	CostPer1MIn:        3.0,
-	// 	CostPer1MInCached:  3.75,
-	// 	CostPer1MOutCached: 0.30,
-	// 	CostPer1MOut:       15.0,
-	// },
-	//
-	// // OpenAI
-	GPT4o: {
-		ID:                 GPT4o,
-		Name:               "GPT-4o",
-		Provider:           ProviderOpenAI,
-		APIModel:           "gpt-4o",
-		CostPer1MIn:        2.50,
-		CostPer1MInCached:  1.25,
-		CostPer1MOutCached: 0,
-		CostPer1MOut:       10.00,
-	},
-	GPT41: {
-		ID:                 GPT41,
-		Name:               "GPT-4.1",
-		Provider:           ProviderOpenAI,
-		APIModel:           "gpt-4.1",
-		CostPer1MIn:        2.00,
-		CostPer1MInCached:  0.50,
-		CostPer1MOutCached: 0,
-		CostPer1MOut:       8.00,
-	},
 	//
 	// // GEMINI
 	// GEMINI25: {
@@ -151,4 +94,5 @@ var SupportedModels = map[ModelID]Model{
 
 func init() {
 	maps.Copy(SupportedModels, AnthropicModels)
+	maps.Copy(SupportedModels, OpenAIModels)
 }

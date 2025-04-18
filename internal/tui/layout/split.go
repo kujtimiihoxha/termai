@@ -11,9 +11,9 @@ type SplitPaneLayout interface {
 	tea.Model
 	Sizeable
 	Bindings
-	SetLeftPanel(panel Container)
-	SetRightPanel(panel Container)
-	SetBottomPanel(panel Container)
+	SetLeftPanel(panel Container) tea.Cmd
+	SetRightPanel(panel Container) tea.Cmd
+	SetBottomPanel(panel Container) tea.Cmd
 }
 
 type splitPaneLayout struct {
@@ -53,8 +53,7 @@ func (s *splitPaneLayout) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		s.SetSize(msg.Width, msg.Height)
-		return s, nil
+		return s, s.SetSize(msg.Width, msg.Height)
 	}
 
 	if s.rightPanel != nil {
@@ -122,7 +121,7 @@ func (s *splitPaneLayout) View() string {
 	return finalView
 }
 
-func (s *splitPaneLayout) SetSize(width, height int) {
+func (s *splitPaneLayout) SetSize(width, height int) tea.Cmd {
 	s.width = width
 	s.height = height
 
@@ -147,42 +146,50 @@ func (s *splitPaneLayout) SetSize(width, height int) {
 		rightWidth = width
 	}
 
+	var cmds []tea.Cmd
 	if s.leftPanel != nil {
-		s.leftPanel.SetSize(leftWidth, topHeight)
+		cmd := s.leftPanel.SetSize(leftWidth, topHeight)
+		cmds = append(cmds, cmd)
 	}
 
 	if s.rightPanel != nil {
-		s.rightPanel.SetSize(rightWidth, topHeight)
+		cmd := s.rightPanel.SetSize(rightWidth, topHeight)
+		cmds = append(cmds, cmd)
 	}
 
 	if s.bottomPanel != nil {
-		s.bottomPanel.SetSize(width, bottomHeight)
+		cmd := s.bottomPanel.SetSize(width, bottomHeight)
+		cmds = append(cmds, cmd)
 	}
+	return tea.Batch(cmds...)
 }
 
 func (s *splitPaneLayout) GetSize() (int, int) {
 	return s.width, s.height
 }
 
-func (s *splitPaneLayout) SetLeftPanel(panel Container) {
+func (s *splitPaneLayout) SetLeftPanel(panel Container) tea.Cmd {
 	s.leftPanel = panel
 	if s.width > 0 && s.height > 0 {
-		s.SetSize(s.width, s.height)
+		return s.SetSize(s.width, s.height)
 	}
+	return nil
 }
 
-func (s *splitPaneLayout) SetRightPanel(panel Container) {
+func (s *splitPaneLayout) SetRightPanel(panel Container) tea.Cmd {
 	s.rightPanel = panel
 	if s.width > 0 && s.height > 0 {
-		s.SetSize(s.width, s.height)
+		return s.SetSize(s.width, s.height)
 	}
+	return nil
 }
 
-func (s *splitPaneLayout) SetBottomPanel(panel Container) {
+func (s *splitPaneLayout) SetBottomPanel(panel Container) tea.Cmd {
 	s.bottomPanel = panel
 	if s.width > 0 && s.height > 0 {
-		s.SetSize(s.width, s.height)
+		return s.SetSize(s.width, s.height)
 	}
+	return nil
 }
 
 func (s *splitPaneLayout) BindingKeys() []key.Binding {

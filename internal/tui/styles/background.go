@@ -3,7 +3,6 @@ package styles
 import (
 	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -25,57 +24,100 @@ func getColorRGB(c lipgloss.TerminalColor) (uint8, uint8, uint8) {
 	return uint8(r >> 8), uint8(g >> 8), uint8(b >> 8)
 }
 
+// ForceReplaceBackgroundWithLipgloss replaces any ANSI background color codes
+// in `input` with a single 24‑bit background (48;2;R;G;B).
 func ForceReplaceBackgroundWithLipgloss(input string, newBgColor lipgloss.TerminalColor) string {
+	// Precompute our new-bg sequence once
 	r, g, b := getColorRGB(newBgColor)
-
 	newBg := fmt.Sprintf("48;2;%d;%d;%d", r, g, b)
 
 	return ansiEscape.ReplaceAllStringFunc(input, func(seq string) string {
-		// Extract content between "\x1b[" and "m"
-		content := seq[2 : len(seq)-1]
-		tokens := strings.Split(content, ";")
-		var newTokens []string
+		const (
+			escPrefixLen = 2 // "\x1b["
+			escSuffixLen = 1 // "m"
+		)
 
-		// Skip background color tokens
-		for i := 0; i < len(tokens); i++ {
-			if tokens[i] == "" {
-				continue
+		raw := seq
+		start := escPrefixLen
+		end := len(raw) - escSuffixLen
+
+		var sb strings.Builder
+		// reserve enough space: original content minus bg codes + our newBg
+		sb.Grow((end - start) + len(newBg) + 2)
+
+		// scan from start..end, token by token
+		for i := start; i < end; {
+			// find the next ';' or end
+			j := i
+			for j < end && raw[j] != ';' {
+				j++
 			}
+			token := raw[i:j]
 
-			val, err := strconv.Atoi(tokens[i])
-			if err != nil {
-				newTokens = append(newTokens, tokens[i])
-				continue
-			}
-
-			// Skip background color tokens
-			if val == 48 {
-				// Skip "48;5;N" or "48;2;R;G;B" sequences
-				if i+1 < len(tokens) {
-					if nextVal, err := strconv.Atoi(tokens[i+1]); err == nil {
-						switch nextVal {
-						case 5:
-							i += 2 // Skip "5" and color index
-						case 2:
-							i += 4 // Skip "2" and RGB components
+			// fast‑path: skip "48;5;N" or "48;2;R;G;B"
+			if len(token) == 2 && token[0] == '4' && token[1] == '8' {
+				k := j + 1
+				if k < end {
+					// find next token
+					l := k
+					for l < end && raw[l] != ';' {
+						l++
+					}
+					next := raw[k:l]
+					if next == "5" {
+						// skip "48;5;N"
+						m := l + 1
+						for m < end && raw[m] != ';' {
+							m++
 						}
+						i = m + 1
+						continue
+					} else if next == "2" {
+						// skip "48;2;R;G;B"
+						m := l + 1
+						for count := 0; count < 3 && m < end; count++ {
+							for m < end && raw[m] != ';' {
+								m++
+							}
+							m++
+						}
+						i = m
+						continue
 					}
 				}
-			} else if (val < 40 || val > 47) && (val < 100 || val > 107) && val != 49 {
-				// Keep non-background tokens
-				newTokens = append(newTokens, tokens[i])
 			}
+
+			// decide whether to keep this token
+			// manually parse ASCII digits to int
+			isNum := true
+			val := 0
+			for p := i; p < j; p++ {
+				c := raw[p]
+				if c < '0' || c > '9' {
+					isNum = false
+					break
+				}
+				val = val*10 + int(c-'0')
+			}
+			keep := !isNum ||
+				((val < 40 || val > 47) && (val < 100 || val > 107) && val != 49)
+
+			if keep {
+				if sb.Len() > 0 {
+					sb.WriteByte(';')
+				}
+				sb.WriteString(token)
+			}
+			// advance past this token (and the semicolon)
+			i = j + 1
 		}
 
-		// Add new background if provided
-		if newBg != "" {
-			newTokens = append(newTokens, strings.Split(newBg, ";")...)
+		// append our new background
+		if sb.Len() > 0 {
+			sb.WriteByte(';')
 		}
+		sb.WriteString(newBg)
 
-		if len(newTokens) == 0 {
-			return ""
-		}
-
-		return "\x1b[" + strings.Join(newTokens, ";") + "m"
+		return "\x1b[" + sb.String() + "m"
 	})
 }
