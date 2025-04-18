@@ -40,7 +40,8 @@ type PermissionDialogCmp interface {
 }
 
 type permissionsMapping struct {
-	LeftRight    key.Binding
+	Left         key.Binding
+	Right        key.Binding
 	EnterSpace   key.Binding
 	Allow        key.Binding
 	AllowSession key.Binding
@@ -49,9 +50,13 @@ type permissionsMapping struct {
 }
 
 var permissionsKeys = permissionsMapping{
-	LeftRight: key.NewBinding(
-		key.WithKeys("left", "right"),
-		key.WithHelp("←/→", "switch options"),
+	Left: key.NewBinding(
+		key.WithKeys("left"),
+		key.WithHelp("←", "switch options"),
+	),
+	Right: key.NewBinding(
+		key.WithKeys("right"),
+		key.WithHelp("→", "switch options"),
 	),
 	EnterSpace: key.NewBinding(
 		key.WithKeys("enter", " "),
@@ -104,21 +109,18 @@ func (p *permissionDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		p.diffCache = make(map[string]string)
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, permissionsKeys.LeftRight) || key.Matches(msg, permissionsKeys.Tab):
-			// Change selected option
+		case key.Matches(msg, permissionsKeys.Right) || key.Matches(msg, permissionsKeys.Tab):
 			p.selectedOption = (p.selectedOption + 1) % 3
 			return p, nil
+		case key.Matches(msg, permissionsKeys.Left):
+			p.selectedOption = (p.selectedOption + 2) % 3
 		case key.Matches(msg, permissionsKeys.EnterSpace):
-			// Select current option
 			return p, p.selectCurrentOption()
 		case key.Matches(msg, permissionsKeys.Allow):
-			// Select Allow
 			return p, util.CmdHandler(PermissionResponseMsg{Action: PermissionAllow, Permission: p.permission})
 		case key.Matches(msg, permissionsKeys.AllowSession):
-			// Select Allow for session
 			return p, util.CmdHandler(PermissionResponseMsg{Action: PermissionAllowForSession, Permission: p.permission})
 		case key.Matches(msg, permissionsKeys.Deny):
-			// Select Deny
 			return p, util.CmdHandler(PermissionResponseMsg{Action: PermissionDeny, Permission: p.permission})
 		default:
 			// Pass other keys to viewport

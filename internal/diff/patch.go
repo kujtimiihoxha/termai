@@ -91,11 +91,9 @@ func (p *Parser) isDone(prefixes []string) bool {
 	if p.index >= len(p.lines) {
 		return true
 	}
-	if prefixes != nil {
-		for _, prefix := range prefixes {
-			if strings.HasPrefix(p.lines[p.index], prefix) {
-				return true
-			}
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(p.lines[p.index], prefix) {
+			return true
 		}
 	}
 	return false
@@ -219,7 +217,7 @@ func (p *Parser) parseUpdateFile(text string) (PatchAction, error) {
 			sectionStr = p.lines[p.index]
 			p.index++
 		}
-		if !(defStr != "" || sectionStr != "" || index == 0) {
+		if defStr == "" && sectionStr == "" && index != 0 {
 			return action, NewDiffError(fmt.Sprintf("Invalid Line:\n%s", p.lines[p.index]))
 		}
 		if strings.TrimSpace(defStr) != "" {
@@ -433,12 +431,13 @@ func peekNextSection(lines []string, initialIndex int) ([]string, []Chunk, int, 
 			delLines = make([]string, 0, 8)
 			insLines = make([]string, 0, 8)
 		}
-		if mode == "delete" {
+		switch mode {
+		case "delete":
 			delLines = append(delLines, line)
 			old = append(old, line)
-		} else if mode == "add" {
+		case "add":
 			insLines = append(insLines, line)
-		} else {
+		default:
 			old = append(old, line)
 		}
 	}
@@ -513,7 +512,7 @@ func IdentifyFilesAdded(text string) []string {
 
 func getUpdatedFile(text string, action PatchAction, path string) (string, error) {
 	if action.Type != ActionUpdate {
-		return "", errors.New("Expected UPDATE action")
+		return "", errors.New("expected UPDATE action")
 	}
 	origLines := strings.Split(text, "\n")
 	destLines := make([]string, 0, len(origLines)) // Preallocate with capacity
@@ -543,18 +542,19 @@ func getUpdatedFile(text string, action PatchAction, path string) (string, error
 func PatchToCommit(patch Patch, orig map[string]string) (Commit, error) {
 	commit := Commit{Changes: make(map[string]FileChange, len(patch.Actions))}
 	for pathKey, action := range patch.Actions {
-		if action.Type == ActionDelete {
+		switch action.Type {
+		case ActionDelete:
 			oldContent := orig[pathKey]
 			commit.Changes[pathKey] = FileChange{
 				Type:       ActionDelete,
 				OldContent: &oldContent,
 			}
-		} else if action.Type == ActionAdd {
+		case ActionAdd:
 			commit.Changes[pathKey] = FileChange{
 				Type:       ActionAdd,
 				NewContent: action.NewFile,
 			}
-		} else if action.Type == ActionUpdate {
+		case ActionUpdate:
 			newContent, err := getUpdatedFile(orig[pathKey], action, pathKey)
 			if err != nil {
 				return Commit{}, err
@@ -619,18 +619,19 @@ func LoadFiles(paths []string, openFn func(string) (string, error)) (map[string]
 
 func ApplyCommit(commit Commit, writeFn func(string, string) error, removeFn func(string) error) error {
 	for p, change := range commit.Changes {
-		if change.Type == ActionDelete {
+		switch change.Type {
+		case ActionDelete:
 			if err := removeFn(p); err != nil {
 				return err
 			}
-		} else if change.Type == ActionAdd {
+		case ActionAdd:
 			if change.NewContent == nil {
 				return NewDiffError(fmt.Sprintf("Add action for %s has nil new_content", p))
 			}
 			if err := writeFn(p, *change.NewContent); err != nil {
 				return err
 			}
-		} else if change.Type == ActionUpdate {
+		case ActionUpdate:
 			if change.NewContent == nil {
 				return NewDiffError(fmt.Sprintf("Update action for %s has nil new_content", p))
 			}

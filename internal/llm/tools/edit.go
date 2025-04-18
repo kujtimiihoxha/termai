@@ -141,20 +141,20 @@ func (e *editTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error)
 	if params.OldString == "" {
 		response, err = e.createNewFile(ctx, params.FilePath, params.NewString)
 		if err != nil {
-			return response, nil
+			return response, err
 		}
 	}
 
 	if params.NewString == "" {
 		response, err = e.deleteContent(ctx, params.FilePath, params.OldString)
 		if err != nil {
-			return response, nil
+			return response, err
 		}
 	}
 
 	response, err = e.replaceContent(ctx, params.FilePath, params.OldString, params.NewString)
 	if err != nil {
-		return response, nil
+		return response, err
 	}
 	if response.IsError {
 		// Return early if there was an error during content replacement

@@ -21,6 +21,8 @@ type editorCmp struct {
 	textarea textarea.Model
 }
 
+type FocusEditorMsg bool
+
 type focusedEditorKeyMaps struct {
 	Send       key.Binding
 	OpenEditor key.Binding
@@ -112,7 +114,6 @@ func (m *editorCmp) send() tea.Cmd {
 		util.CmdHandler(SendMsg{
 			Text: value,
 		}),
-		util.CmdHandler(EditorFocusMsg(false)),
 	)
 }
 
@@ -124,9 +125,13 @@ func (m *editorCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.session = msg
 		}
 		return m, nil
+	case FocusEditorMsg:
+		if msg {
+			m.textarea.Focus()
+			return m, tea.Batch(textarea.Blink, util.CmdHandler(EditorFocusMsg(true)))
+		}
 	case tea.KeyMsg:
 		if key.Matches(msg, focusedKeyMaps.OpenEditor) {
-			m.textarea.Blur()
 			return m, openEditor()
 		}
 		// if the key does not match any binding, return

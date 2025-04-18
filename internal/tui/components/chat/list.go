@@ -22,6 +22,10 @@ import (
 	"github.com/kujtimiihoxha/opencode/internal/tui/util"
 )
 
+type cacheItem struct {
+	width   int
+	content []uiMessage
+}
 type messagesCmp struct {
 	app           *app.App
 	width, height int
@@ -32,8 +36,9 @@ type messagesCmp struct {
 	uiMessages    []uiMessage
 	currentMsgID  string
 	mutex         sync.Mutex
-	cachedContent map[string][]uiMessage
+	cachedContent map[string]cacheItem
 	spinner       spinner.Model
+	lastUpdate    time.Time
 	rendering     bool
 }
 type renderFinishedMsg struct{}
@@ -44,6 +49,8 @@ func (m *messagesCmp) Init() tea.Cmd {
 
 func (m *messagesCmp) preloadSessions() tea.Cmd {
 	return func() tea.Msg {
+		m.mutex.Lock()
+		defer m.mutex.Unlock()
 		sessions, err := m.app.Sessions.List(context.Background())
 		if err != nil {
 			return util.ReportError(err)()
@@ -67,13 +74,13 @@ func (m *messagesCmp) preloadSessions() tea.Cmd {
 		}
 		logging.Debug("preloaded sessions")
 
-		return nil
+		return func() tea.Msg {
+			return renderFinishedMsg{}
+		}
 	}
 }
 
 func (m *messagesCmp) cacheSessionMessages(messages []message.Message, width int) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
 	pos := 0
 	if m.width == 0 {
 		return
@@ -87,7 +94,10 @@ func (m *messagesCmp) cacheSessionMessages(messages []message.Message, width int
 				width,
 				pos,
 			)
-			m.cachedContent[msg.ID] = []uiMessage{userMsg}
+			m.cachedContent[msg.ID] = cacheItem{
+				width:   width,
+				content: []uiMessage{userMsg},
+			}
 			pos += userMsg.height + 1 // + 1 for spacing
 		case message.Assistant:
 			assistantMessages := renderAssistantMessage(
@@ -102,7 +112,10 @@ func (m *messagesCmp) cacheSessionMessages(messages []message.Message, width int
 			for _, msg := range assistantMessages {
 				pos += msg.height + 1 // + 1 for spacing
 			}
-			m.cachedContent[msg.ID] = assistantMessages
+			m.cachedContent[msg.ID] = cacheItem{
+				width:   width,
+				content: assistantMessages,
+			}
 		}
 	}
 }
@@ -223,8 +236,8 @@ func (m *messagesCmp) renderView() {
 	for inx, msg := range m.messages {
 		switch msg.Role {
 		case message.User:
-			if messages, ok := m.cachedContent[msg.ID]; ok {
-				m.uiMessages = append(m.uiMessages, messages...)
+			if cache, ok := m.cachedContent[msg.ID]; ok && cache.width == m.width {
+				m.uiMessages = append(m.uiMessages, cache.content...)
 				continue
 			}
 			userMsg := renderUserMessage(
@@ -234,11 +247,14 @@ func (m *messagesCmp) renderView() {
 				pos,
 			)
 			m.uiMessages = append(m.uiMessages, userMsg)
-			m.cachedContent[msg.ID] = []uiMessage{userMsg}
+			m.cachedContent[msg.ID] = cacheItem{
+				width:   m.width,
+				content: []uiMessage{userMsg},
+			}
 			pos += userMsg.height + 1 // + 1 for spacing
 		case message.Assistant:
-			if messages, ok := m.cachedContent[msg.ID]; ok {
-				m.uiMessages = append(m.uiMessages, messages...)
+			if cache, ok := m.cachedContent[msg.ID]; ok && cache.width == m.width {
+				m.uiMessages = append(m.uiMessages, cache.content...)
 				continue
 			}
 			assistantMessages := renderAssistantMessage(
@@ -254,7 +270,10 @@ func (m *messagesCmp) renderView() {
 				m.uiMessages = append(m.uiMessages, msg)
 				pos += msg.height + 1 // + 1 for spacing
 			}
-			m.cachedContent[msg.ID] = assistantMessages
+			m.cachedContent[msg.ID] = cacheItem{
+				width:   m.width,
+				content: assistantMessages,
+			}
 		}
 	}
 
@@ -418,6 +437,10 @@ func (m *messagesCmp) SetSize(width, height int) tea.Cmd {
 	m.height = height
 	m.viewport.Width = width
 	m.viewport.Height = height - 2
+	for _, msg := range m.messages {
+		delete(m.cachedContent, msg.ID)
+	}
+	m.uiMessages = make([]uiMessage, 0)
 	m.renderView()
 	return m.preloadSessions()
 }
@@ -456,7 +479,7 @@ func NewMessagesCmp(app *app.App) tea.Model {
 	return &messagesCmp{
 		app:           app,
 		writingMode:   true,
-		cachedContent: make(map[string][]uiMessage),
+		cachedContent: make(map[string]cacheItem),
 		viewport:      viewport.New(0, 0),
 		spinner:       s,
 	}

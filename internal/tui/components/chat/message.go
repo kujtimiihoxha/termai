@@ -389,6 +389,7 @@ func renderToolResponse(toolCall message.ToolCall, response message.ToolResult, 
 		errContent := fmt.Sprintf("Error: %s", strings.ReplaceAll(response.Content, "\n", " "))
 		errContent = ansi.Truncate(errContent, width-1, "...")
 		return styles.BaseStyle.
+			Width(width).
 			Foreground(styles.Error).
 			Render(errContent)
 	}

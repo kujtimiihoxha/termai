@@ -27,20 +27,20 @@ type SessionDialog interface {
 }
 
 type sessionDialogCmp struct {
-	sessions     []session.Session
-	selectedIdx  int
-	width        int
-	height       int
+	sessions          []session.Session
+	selectedIdx       int
+	width             int
+	height            int
 	selectedSessionID string
 }
 
 type sessionKeyMap struct {
-	Up         key.Binding
-	Down       key.Binding
-	Enter      key.Binding
-	Escape     key.Binding
-	J          key.Binding
-	K          key.Binding
+	Up     key.Binding
+	Down   key.Binding
+	Enter  key.Binding
+	Escape key.Binding
+	J      key.Binding
+	K      key.Binding
 }
 
 var sessionKeys = sessionKeyMap{
@@ -128,7 +128,7 @@ func (s *sessionDialogCmp) View() string {
 	// Build the session list
 	sessionItems := make([]string, 0, maxVisibleSessions)
 	startIdx := 0
-	
+
 	// If we have more sessions than can be displayed, adjust the start index
 	if len(s.sessions) > maxVisibleSessions {
 		// Center the selected item when possible
@@ -145,30 +145,31 @@ func (s *sessionDialogCmp) View() string {
 	for i := startIdx; i < endIdx; i++ {
 		sess := s.sessions[i]
 		itemStyle := styles.BaseStyle.Width(maxWidth)
-		
+
 		if i == s.selectedIdx {
 			itemStyle = itemStyle.
 				Background(styles.PrimaryColor).
 				Foreground(styles.Background).
 				Bold(true)
 		}
-		
+
 		sessionItems = append(sessionItems, itemStyle.Padding(0, 1).Render(sess.Title))
 	}
 
 	title := styles.BaseStyle.
 		Foreground(styles.PrimaryColor).
 		Bold(true).
+		Width(maxWidth).
 		Padding(0, 1).
 		Render("Switch Session")
 
 	content := lipgloss.JoinVertical(
 		lipgloss.Left,
 		title,
-		styles.BaseStyle.Render(""),
-		lipgloss.JoinVertical(lipgloss.Left, sessionItems...),
-		styles.BaseStyle.Render(""),
-		styles.BaseStyle.Foreground(styles.ForgroundDim).Render("↑/k: up  ↓/j: down  enter: select  esc: cancel"),
+		styles.BaseStyle.Width(maxWidth).Render(""),
+		styles.BaseStyle.Width(maxWidth).Render(lipgloss.JoinVertical(lipgloss.Left, sessionItems...)),
+		styles.BaseStyle.Width(maxWidth).Render(""),
+		styles.BaseStyle.Width(maxWidth).Padding(0, 1).Foreground(styles.ForgroundDim).Render("↑/k: up  ↓/j: down  enter: select  esc: cancel"),
 	)
 
 	return styles.BaseStyle.Padding(1, 2).
@@ -185,7 +186,7 @@ func (s *sessionDialogCmp) BindingKeys() []key.Binding {
 
 func (s *sessionDialogCmp) SetSessions(sessions []session.Session) {
 	s.sessions = sessions
-	
+
 	// If we have a selected session ID, find its index
 	if s.selectedSessionID != "" {
 		for i, sess := range sessions {
@@ -195,14 +196,14 @@ func (s *sessionDialogCmp) SetSessions(sessions []session.Session) {
 			}
 		}
 	}
-	
+
 	// Default to first session if selected not found
 	s.selectedIdx = 0
 }
 
 func (s *sessionDialogCmp) SetSelectedSession(sessionID string) {
 	s.selectedSessionID = sessionID
-	
+
 	// Update the selected index if sessions are already loaded
 	if len(s.sessions) > 0 {
 		for i, sess := range s.sessions {
@@ -217,8 +218,9 @@ func (s *sessionDialogCmp) SetSelectedSession(sessionID string) {
 // NewSessionDialogCmp creates a new session switching dialog
 func NewSessionDialogCmp() SessionDialog {
 	return &sessionDialogCmp{
-		sessions:         []session.Session{},
-		selectedIdx:      0,
+		sessions:          []session.Session{},
+		selectedIdx:       0,
 		selectedSessionID: "",
 	}
 }
+

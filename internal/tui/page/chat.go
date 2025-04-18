@@ -43,13 +43,6 @@ func (p *chatPage) Init() tea.Cmd {
 	cmds := []tea.Cmd{
 		p.layout.Init(),
 	}
-
-	sessions, _ := p.app.Sessions.List(context.Background())
-	if len(sessions) > 0 {
-		p.session = sessions[0]
-		cmd := p.setSidebar()
-		cmds = append(cmds, util.CmdHandler(chat.SessionSelectedMsg(p.session)), cmd)
-	}
 	return tea.Batch(cmds...)
 }
 

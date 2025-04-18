@@ -163,6 +163,7 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.showPermissions = true
 		return a, a.permissions.SetPermissions(msg.Payload)
 	case dialog.PermissionResponseMsg:
+		var cmd tea.Cmd
 		switch msg.Action {
 		case dialog.PermissionAllow:
 			a.app.Permissions.Grant(msg.Permission)
@@ -170,9 +171,10 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.app.Permissions.GrantPersistant(msg.Permission)
 		case dialog.PermissionDeny:
 			a.app.Permissions.Deny(msg.Permission)
+			cmd = util.CmdHandler(chat.FocusEditorMsg(true))
 		}
 		a.showPermissions = false
-		return a, nil
+		return a, cmd
 
 	case page.PageChangeMsg:
 		return a, a.moveToPage(msg.ID)
