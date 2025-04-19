@@ -80,16 +80,16 @@ var SupportedModels = map[ModelID]Model{
 	// },
 	//
 	// // Bedrock
-	// BedrockClaude37Sonnet: {
-	// 	ID:                 BedrockClaude37Sonnet,
-	// 	Name:               "Bedrock: Claude 3.7 Sonnet",
-	// 	Provider:           ProviderBedrock,
-	// 	APIModel:           "anthropic.claude-3-7-sonnet-20250219-v1:0",
-	// 	CostPer1MIn:        3.0,
-	// 	CostPer1MInCached:  3.75,
-	// 	CostPer1MOutCached: 0.30,
-	// 	CostPer1MOut:       15.0,
-	// },
+	BedrockClaude37Sonnet: {
+		ID:                 BedrockClaude37Sonnet,
+		Name:               "Bedrock: Claude 3.7 Sonnet",
+		Provider:           ProviderBedrock,
+		APIModel:           "anthropic.claude-3-7-sonnet-20250219-v1:0",
+		CostPer1MIn:        3.0,
+		CostPer1MInCached:  3.75,
+		CostPer1MOutCached: 0.30,
+		CostPer1MOut:       15.0,
+	},
 }
 
 func init() {
