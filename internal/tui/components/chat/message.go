@@ -151,7 +151,11 @@ func renderAssistantMessage(
 			))
 		}
 	}
-	if content != "" {
+	if content != "" || (finished && finishData.Reason == message.FinishReasonEndTurn) {
+		if content == "" {
+			content = "*Finished without output*"
+		}
+
 		content = renderMessage(content, false, msg.ID == focusedUIMessageId, width, info...)
 		messages = append(messages, uiMessage{
 			ID:          msg.ID,

@@ -2,6 +2,7 @@ package chat
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
@@ -28,8 +29,16 @@ func lspsConfigured(width int) string {
 
 	lsps := styles.BaseStyle.Width(width).Foreground(styles.PrimaryColor).Bold(true).Render(title)
 
+	// Get LSP names and sort them for consistent ordering
+	var lspNames []string
+	for name := range cfg.LSP {
+		lspNames = append(lspNames, name)
+	}
+	sort.Strings(lspNames)
+
 	var lspViews []string
-	for name, lsp := range cfg.LSP {
+	for _, name := range lspNames {
+		lsp := cfg.LSP[name]
 		lspName := styles.BaseStyle.Foreground(styles.Forground).Render(
 			fmt.Sprintf("• %s", name),
 		)
@@ -49,7 +58,6 @@ func lspsConfigured(width int) string {
 					),
 				),
 		)
-
 	}
 	return styles.BaseStyle.
 		Width(width).

@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bmatcuk/doublestar/v4"
 	"github.com/fsnotify/fsnotify"
 	"github.com/kujtimiihoxha/opencode/internal/config"
 	"github.com/kujtimiihoxha/opencode/internal/logging"
@@ -43,6 +44,8 @@ func NewWorkspaceWatcher(client *lsp.Client) *WorkspaceWatcher {
 // AddRegistrations adds file watchers to track
 func (w *WorkspaceWatcher) AddRegistrations(ctx context.Context, id string, watchers []protocol.FileSystemWatcher) {
 	cnf := config.Get()
+
+	logging.Debug("Adding file watcher registrations")
 	w.registrationMu.Lock()
 	defer w.registrationMu.Unlock()
 
@@ -55,7 +58,6 @@ func (w *WorkspaceWatcher) AddRegistrations(ctx context.Context, id string, watc
 			"id", id,
 			"watchers", len(watchers),
 			"total", len(w.registrations),
-			"watchers", watchers,
 		)
 
 		for i, watcher := range watchers {
@@ -88,66 +90,217 @@ func (w *WorkspaceWatcher) AddRegistrations(ctx context.Context, id string, watc
 			}
 
 			logging.Debug("WatchKind", "kind", watchKind)
-
-			// Test match against some example paths
-			testPaths := []string{
-				"/Users/phil/dev/mcp-language-server/internal/watcher/watcher.go",
-				"/Users/phil/dev/mcp-language-server/go.mod",
-			}
-
-			for _, testPath := range testPaths {
-				isMatch := w.matchesPattern(testPath, watcher.GlobPattern)
-				logging.Debug("Test path", "path", testPath, "matches", isMatch)
-			}
 		}
 	}
 
-	// Find and open all existing files that match the newly registered patterns
-	// TODO: not all language servers require this, but typescript does. Make this configurable
-	go func() {
-		startTime := time.Now()
-		filesOpened := 0
+	// Determine server type for specialized handling
+	serverName := getServerNameFromContext(ctx)
+	logging.Debug("Server type detected", "serverName", serverName)
+	
+	// Check if this server has sent file watchers
+	hasFileWatchers := len(watchers) > 0
+	
+	// For servers that need file preloading, we'll use a smart approach
+	if shouldPreloadFiles(serverName) || !hasFileWatchers {
+		go func() {
+			startTime := time.Now()
+			filesOpened := 0
+			
+			// Determine max files to open based on server type
+			maxFilesToOpen := 50 // Default conservative limit
+			
+			switch serverName {
+			case "typescript", "typescript-language-server", "tsserver", "vtsls":
+				// TypeScript servers benefit from seeing more files
+				maxFilesToOpen = 100
+			case "java", "jdtls":
+				// Java servers need to see many files for project model
+				maxFilesToOpen = 200
+			}
+			
+			// First, open high-priority files
+			highPriorityFilesOpened := w.openHighPriorityFiles(ctx, serverName)
+			filesOpened += highPriorityFilesOpened
+			
+			if cnf.DebugLSP {
+				logging.Debug("Opened high-priority files", 
+					"count", highPriorityFilesOpened,
+					"serverName", serverName)
+			}
+			
+			// If we've already opened enough high-priority files, we might not need more
+			if filesOpened >= maxFilesToOpen {
+				if cnf.DebugLSP {
+					logging.Debug("Reached file limit with high-priority files",
+						"filesOpened", filesOpened,
+						"maxFiles", maxFilesToOpen)
+				}
+				return
+			}
+			
+			// For the remaining slots, walk the directory and open matching files
+			
+			err := filepath.WalkDir(w.workspacePath, func(path string, d os.DirEntry, err error) error {
+				if err != nil {
+					return err
+				}
 
-		err := filepath.WalkDir(w.workspacePath, func(path string, d os.DirEntry, err error) error {
-			if err != nil {
-				return err
+				// Skip directories that should be excluded
+				if d.IsDir() {
+					if path != w.workspacePath && shouldExcludeDir(path) {
+						if cnf.DebugLSP {
+							logging.Debug("Skipping excluded directory", "path", path)
+						}
+						return filepath.SkipDir
+					}
+				} else {
+					// Process files, but limit the total number
+					if filesOpened < maxFilesToOpen {
+						// Only process if it's not already open (high-priority files were opened earlier)
+						if !w.client.IsFileOpen(path) {
+							w.openMatchingFile(ctx, path)
+							filesOpened++
+
+							// Add a small delay after every 10 files to prevent overwhelming the server
+							if filesOpened%10 == 0 {
+								time.Sleep(50 * time.Millisecond)
+							}
+						}
+					} else {
+						// We've reached our limit, stop walking
+						return filepath.SkipAll
+					}
+				}
+
+				return nil
+			})
+
+			elapsedTime := time.Since(startTime)
+			if cnf.DebugLSP {
+				logging.Debug("Limited workspace scan complete",
+					"filesOpened", filesOpened,
+					"maxFiles", maxFilesToOpen,
+					"elapsedTime", elapsedTime.Seconds(),
+					"workspacePath", w.workspacePath,
+				)
 			}
 
-			// Skip directories that should be excluded
-			if d.IsDir() {
-				if path != w.workspacePath && shouldExcludeDir(path) {
-					if cnf.DebugLSP {
-						logging.Debug("Skipping excluded directory", "path", path)
-					}
-					return filepath.SkipDir
+			if err != nil && cnf.DebugLSP {
+				logging.Debug("Error scanning workspace for files to open", "error", err)
+			}
+		}()
+	} else if cnf.DebugLSP {
+		logging.Debug("Using on-demand file loading for server", "server", serverName)
+	}
+}
+
+// openHighPriorityFiles opens important files for the server type
+// Returns the number of files opened
+func (w *WorkspaceWatcher) openHighPriorityFiles(ctx context.Context, serverName string) int {
+	cnf := config.Get()
+	filesOpened := 0
+	
+	// Define patterns for high-priority files based on server type
+	var patterns []string
+	
+	switch serverName {
+	case "typescript", "typescript-language-server", "tsserver", "vtsls":
+		patterns = []string{
+			"**/tsconfig.json",
+			"**/package.json",
+			"**/jsconfig.json",
+			"**/index.ts",
+			"**/index.js",
+			"**/main.ts",
+			"**/main.js",
+		}
+	case "gopls":
+		patterns = []string{
+			"**/go.mod",
+			"**/go.sum",
+			"**/main.go",
+		}
+	case "rust-analyzer":
+		patterns = []string{
+			"**/Cargo.toml",
+			"**/Cargo.lock",
+			"**/src/lib.rs",
+			"**/src/main.rs",
+		}
+	case "python", "pyright", "pylsp":
+		patterns = []string{
+			"**/pyproject.toml",
+			"**/setup.py",
+			"**/requirements.txt",
+			"**/__init__.py",
+			"**/__main__.py",
+		}
+	case "clangd":
+		patterns = []string{
+			"**/CMakeLists.txt",
+			"**/Makefile",
+			"**/compile_commands.json",
+		}
+	case "java", "jdtls":
+		patterns = []string{
+			"**/pom.xml",
+			"**/build.gradle",
+			"**/src/main/java/**/*.java",
+		}
+	default:
+		// For unknown servers, use common configuration files
+		patterns = []string{
+			"**/package.json",
+			"**/Makefile",
+			"**/CMakeLists.txt",
+			"**/.editorconfig",
+		}
+	}
+	
+	// For each pattern, find and open matching files
+	for _, pattern := range patterns {
+		// Use doublestar.Glob to find files matching the pattern (supports ** patterns)
+		matches, err := doublestar.Glob(os.DirFS(w.workspacePath), pattern)
+		if err != nil {
+			if cnf.DebugLSP {
+				logging.Debug("Error finding high-priority files", "pattern", pattern, "error", err)
+			}
+			continue
+		}
+		
+		for _, match := range matches {
+			// Convert relative path to absolute
+			fullPath := filepath.Join(w.workspacePath, match)
+			
+			// Skip directories and excluded files
+			info, err := os.Stat(fullPath)
+			if err != nil || info.IsDir() || shouldExcludeFile(fullPath) {
+				continue
+			}
+			
+			// Open the file
+			if err := w.client.OpenFile(ctx, fullPath); err != nil {
+				if cnf.DebugLSP {
+					logging.Debug("Error opening high-priority file", "path", fullPath, "error", err)
 				}
 			} else {
-				// Process files
-				w.openMatchingFile(ctx, path)
 				filesOpened++
-
-				// Add a small delay after every 100 files to prevent overwhelming the server
-				if filesOpened%100 == 0 {
-					time.Sleep(10 * time.Millisecond)
+				if cnf.DebugLSP {
+					logging.Debug("Opened high-priority file", "path", fullPath)
 				}
 			}
-
-			return nil
-		})
-
-		elapsedTime := time.Since(startTime)
-		if cnf.DebugLSP {
-			logging.Debug("Workspace scan complete",
-				"filesOpened", filesOpened,
-				"elapsedTime", elapsedTime.Seconds(),
-				"workspacePath", w.workspacePath,
-			)
+			
+			// Add a small delay to prevent overwhelming the server
+			time.Sleep(20 * time.Millisecond)
+			
+			// Limit the number of files opened per pattern
+			if filesOpened >= 5 && (serverName != "java" && serverName != "jdtls") {
+				break
+			}
 		}
-
-		if err != nil && cnf.DebugLSP {
-			logging.Debug("Error scanning workspace for files to open", "error", err)
-		}
-	}()
+	}
+	
+	return filesOpened
 }
 
 // WatchWorkspace sets up file watching for a workspace
@@ -155,6 +308,18 @@ func (w *WorkspaceWatcher) WatchWorkspace(ctx context.Context, workspacePath str
 	cnf := config.Get()
 	w.workspacePath = workspacePath
 
+	// Store the watcher in the context for later use
+	ctx = context.WithValue(ctx, "workspaceWatcher", w)
+	
+	// If the server name isn't already in the context, try to detect it
+	if _, ok := ctx.Value("serverName").(string); !ok {
+		serverName := getServerNameFromContext(ctx)
+		ctx = context.WithValue(ctx, "serverName", serverName)
+	}
+	
+	serverName := getServerNameFromContext(ctx)
+	logging.Debug("Starting workspace watcher", "workspacePath", workspacePath, "serverName", serverName)
+	
 	// Register handler for file watcher registrations from the server
 	lsp.RegisterFileWatchHandler(func(id string, watchers []protocol.FileSystemWatcher) {
 		w.AddRegistrations(ctx, id, watchers)
@@ -510,6 +675,57 @@ func (w *WorkspaceWatcher) notifyFileEvent(ctx context.Context, uri string, chan
 	return w.client.DidChangeWatchedFiles(ctx, params)
 }
 
+// getServerNameFromContext extracts the server name from the context
+// This is a best-effort function that tries to identify which LSP server we're dealing with
+func getServerNameFromContext(ctx context.Context) string {
+	// First check if the server name is directly stored in the context
+	if serverName, ok := ctx.Value("serverName").(string); ok && serverName != "" {
+		return strings.ToLower(serverName)
+	}
+	
+	// Otherwise, try to extract server name from the client command path
+	if w, ok := ctx.Value("workspaceWatcher").(*WorkspaceWatcher); ok && w != nil && w.client != nil && w.client.Cmd != nil {
+		path := strings.ToLower(w.client.Cmd.Path)
+
+		// Extract server name from path
+		if strings.Contains(path, "typescript") || strings.Contains(path, "tsserver") || strings.Contains(path, "vtsls") {
+			return "typescript"
+		} else if strings.Contains(path, "gopls") {
+			return "gopls"
+		} else if strings.Contains(path, "rust-analyzer") {
+			return "rust-analyzer"
+		} else if strings.Contains(path, "pyright") || strings.Contains(path, "pylsp") || strings.Contains(path, "python") {
+			return "python"
+		} else if strings.Contains(path, "clangd") {
+			return "clangd"
+		} else if strings.Contains(path, "jdtls") || strings.Contains(path, "java") {
+			return "java"
+		}
+
+		// Return the base name as fallback
+		return filepath.Base(path)
+	}
+
+	return "unknown"
+}
+
+// shouldPreloadFiles determines if we should preload files for a specific language server
+// Some servers work better with preloaded files, others don't need it
+func shouldPreloadFiles(serverName string) bool {
+	// TypeScript/JavaScript servers typically need some files preloaded
+	// to properly resolve imports and provide intellisense
+	switch serverName {
+	case "typescript", "typescript-language-server", "tsserver", "vtsls":
+		return true
+	case "java", "jdtls":
+		// Java servers often need to see source files to build the project model
+		return true
+	default:
+		// For most servers, we'll use lazy loading by default
+		return false
+	}
+}
+
 // Common patterns for directories and files to exclude
 // TODO: make configurable
 var (
@@ -647,9 +863,119 @@ func (w *WorkspaceWatcher) openMatchingFile(ctx context.Context, path string) {
 
 	// Check if this path should be watched according to server registrations
 	if watched, _ := w.isPathWatched(path); watched {
-		// Don't need to check if it's already open - the client.OpenFile handles that
-		if err := w.client.OpenFile(ctx, path); err != nil && cnf.DebugLSP {
-			logging.Error("Error opening file", "path", path, "error", err)
+		// Get server name for specialized handling
+		serverName := getServerNameFromContext(ctx)
+		
+		// Check if the file is a high-priority file that should be opened immediately
+		// This helps with project initialization for certain language servers
+		if isHighPriorityFile(path, serverName) {
+			if cnf.DebugLSP {
+				logging.Debug("Opening high-priority file", "path", path, "serverName", serverName)
+			}
+			if err := w.client.OpenFile(ctx, path); err != nil && cnf.DebugLSP {
+				logging.Error("Error opening high-priority file", "path", path, "error", err)
+			}
+			return
+		}
+
+		// For non-high-priority files, we'll use different strategies based on server type
+		if shouldPreloadFiles(serverName) {
+			// For servers that benefit from preloading, open files but with limits
+			
+			// Check file size - for preloading we're more conservative
+			if info.Size() > (1 * 1024 * 1024) { // 1MB limit for preloaded files
+				if cnf.DebugLSP {
+					logging.Debug("Skipping large file for preloading", "path", path, "size", info.Size())
+				}
+				return
+			}
+			
+			// Check file extension for common source files
+			ext := strings.ToLower(filepath.Ext(path))
+			
+			// Only preload source files for the specific language
+			shouldOpen := false
+			
+			switch serverName {
+			case "typescript", "typescript-language-server", "tsserver", "vtsls":
+				shouldOpen = ext == ".ts" || ext == ".js" || ext == ".tsx" || ext == ".jsx"
+			case "gopls":
+				shouldOpen = ext == ".go"
+			case "rust-analyzer":
+				shouldOpen = ext == ".rs"
+			case "python", "pyright", "pylsp":
+				shouldOpen = ext == ".py"
+			case "clangd":
+				shouldOpen = ext == ".c" || ext == ".cpp" || ext == ".h" || ext == ".hpp"
+			case "java", "jdtls":
+				shouldOpen = ext == ".java"
+			default:
+				// For unknown servers, be conservative
+				shouldOpen = false
+			}
+			
+			if shouldOpen {
+				// Don't need to check if it's already open - the client.OpenFile handles that
+				if err := w.client.OpenFile(ctx, path); err != nil && cnf.DebugLSP {
+					logging.Error("Error opening file", "path", path, "error", err)
+				}
+			}
 		}
 	}
+}
+
+// isHighPriorityFile determines if a file should be opened immediately
+// regardless of the preloading strategy
+func isHighPriorityFile(path string, serverName string) bool {
+	fileName := filepath.Base(path)
+	ext := filepath.Ext(path)
+
+	switch serverName {
+	case "typescript", "typescript-language-server", "tsserver", "vtsls":
+		// For TypeScript, we want to open configuration files immediately
+		return fileName == "tsconfig.json" ||
+			fileName == "package.json" ||
+			fileName == "jsconfig.json" ||
+			// Also open main entry points
+			fileName == "index.ts" ||
+			fileName == "index.js" ||
+			fileName == "main.ts" ||
+			fileName == "main.js"
+	case "gopls":
+		// For Go, we want to open go.mod files immediately
+		return fileName == "go.mod" || 
+			fileName == "go.sum" ||
+			// Also open main.go files
+			fileName == "main.go"
+	case "rust-analyzer":
+		// For Rust, we want to open Cargo.toml files immediately
+		return fileName == "Cargo.toml" || 
+			fileName == "Cargo.lock" ||
+			// Also open lib.rs and main.rs
+			fileName == "lib.rs" ||
+			fileName == "main.rs"
+	case "python", "pyright", "pylsp":
+		// For Python, open key project files
+		return fileName == "pyproject.toml" ||
+			fileName == "setup.py" ||
+			fileName == "requirements.txt" ||
+			fileName == "__init__.py" ||
+			fileName == "__main__.py"
+	case "clangd":
+		// For C/C++, open key project files
+		return fileName == "CMakeLists.txt" ||
+			fileName == "Makefile" ||
+			fileName == "compile_commands.json"
+	case "java", "jdtls":
+		// For Java, open key project files
+		return fileName == "pom.xml" ||
+			fileName == "build.gradle" ||
+			ext == ".java" // Java servers often need to see source files
+	}
+
+	// For unknown servers, prioritize common configuration files
+	return fileName == "package.json" ||
+		fileName == "Makefile" ||
+		fileName == "CMakeLists.txt" ||
+		fileName == ".editorconfig"
 }

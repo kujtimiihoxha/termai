@@ -138,6 +138,23 @@ func (m statusCmp) View() string {
 }
 
 func (m *statusCmp) projectDiagnostics() string {
+	// Check if any LSP server is still initializing
+	initializing := false
+	for _, client := range m.lspClients {
+		if client.GetServerState() == lsp.StateStarting {
+			initializing = true
+			break
+		}
+	}
+	
+	// If any server is initializing, show that status
+	if initializing {
+		return lipgloss.NewStyle().
+			Background(styles.BackgroundDarker).
+			Foreground(styles.Peach).
+			Render(fmt.Sprintf("%s Initializing LSP...", styles.SpinnerIcon))
+	}
+	
 	errorDiagnostics := []protocol.Diagnostic{}
 	warnDiagnostics := []protocol.Diagnostic{}
 	hintDiagnostics := []protocol.Diagnostic{}

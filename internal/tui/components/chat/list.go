@@ -376,14 +376,7 @@ func (m *messagesCmp) working() string {
 		if hasToolsWithoutResponse(m.messages) {
 			task = "Waiting for tool response..."
 		} else if !lastMessage.IsFinished() {
-			lastUpdate := lastMessage.UpdatedAt
-			currentTime := time.Now().Unix()
-			if lastMessage.Content().String() != "" && lastUpdate != 0 && currentTime-lastUpdate > 5 {
-				task = "Building tool call..."
-			} else if lastMessage.Content().String() == "" {
-				task = "Generating..."
-			}
-			task = ""
+			task = "Generating..."
 		}
 		if task != "" {
 			text += styles.BaseStyle.Width(m.width).Foreground(styles.PrimaryColor).Bold(true).Render(

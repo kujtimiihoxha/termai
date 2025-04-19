@@ -23,9 +23,6 @@ type Model struct {
 
 // Model IDs
 const ( // GEMINI
-	GEMINI25      ModelID = "gemini-2.5"
-	GRMINI20Flash ModelID = "gemini-2.0-flash"
-
 	// GROQ
 	QWENQwq ModelID = "qwen-qwq"
 
@@ -35,7 +32,6 @@ const ( // GEMINI
 
 const (
 	ProviderBedrock ModelProvider = "bedrock"
-	ProviderGemini  ModelProvider = "gemini"
 	ProviderGROQ    ModelProvider = "groq"
 
 	// ForTests
@@ -95,4 +91,5 @@ var SupportedModels = map[ModelID]Model{
 func init() {
 	maps.Copy(SupportedModels, AnthropicModels)
 	maps.Copy(SupportedModels, OpenAIModels)
+	maps.Copy(SupportedModels, GeminiModels)
 }

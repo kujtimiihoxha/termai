@@ -209,17 +209,17 @@ func setProviderDefaults() {
 	// Google Gemini configuration
 	if apiKey := os.Getenv("GEMINI_API_KEY"); apiKey != "" {
 		viper.SetDefault("providers.gemini.apiKey", apiKey)
-		viper.SetDefault("agents.coder.model", models.GRMINI20Flash)
-		viper.SetDefault("agents.task.model", models.GRMINI20Flash)
-		viper.SetDefault("agents.title.model", models.GRMINI20Flash)
+		viper.SetDefault("agents.coder.model", models.Gemini25)
+		viper.SetDefault("agents.task.model", models.Gemini25Flash)
+		viper.SetDefault("agents.title.model", models.Gemini25Flash)
 	}
 
 	// OpenAI configuration
 	if apiKey := os.Getenv("OPENAI_API_KEY"); apiKey != "" {
 		viper.SetDefault("providers.openai.apiKey", apiKey)
-		viper.SetDefault("agents.coder.model", models.GPT4o)
-		viper.SetDefault("agents.task.model", models.GPT4o)
-		viper.SetDefault("agents.title.model", models.GPT4o)
+		viper.SetDefault("agents.coder.model", models.GPT41)
+		viper.SetDefault("agents.task.model", models.GPT41Mini)
+		viper.SetDefault("agents.title.model", models.GPT41Mini)
 
 	}
 

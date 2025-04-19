@@ -49,7 +49,8 @@ func New(ctx context.Context, conn *sql.DB) (*App, error) {
 		LSPClients:  make(map[string]*lsp.Client),
 	}
 
-	app.initLSPClients(ctx)
+	// Initialize LSP clients in the background
+	go app.initLSPClients(ctx)
 
 	var err error
 	app.CoderAgent, err = agent.NewAgent(
