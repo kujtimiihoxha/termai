@@ -380,6 +380,21 @@ func (a *agent) processEvent(ctx context.Context, sessionID string, assistantMsg
 	case provider.EventContentDelta:
 		assistantMsg.AppendContent(event.Content)
 		return a.messages.Update(ctx, *assistantMsg)
+	case provider.EventToolUseStart:
+		assistantMsg.AddToolCall(*event.ToolCall)
+		return a.messages.Update(ctx, *assistantMsg)
+	// TODO: see how to handle this
+	// case provider.EventToolUseDelta:
+	// 	tm := time.Unix(assistantMsg.UpdatedAt, 0)
+	// 	assistantMsg.AppendToolCallInput(event.ToolCall.ID, event.ToolCall.Input)
+	// 	if time.Since(tm) > 1000*time.Millisecond {
+	// 		err := a.messages.Update(ctx, *assistantMsg)
+	// 		assistantMsg.UpdatedAt = time.Now().Unix()
+	// 		return err
+	// 	}
+	case provider.EventToolUseStop:
+		assistantMsg.FinishToolCall(event.ToolCall.ID)
+		return a.messages.Update(ctx, *assistantMsg)
 	case provider.EventError:
 		if errors.Is(event.Error, context.Canceled) {
 			logging.InfoPersist(fmt.Sprintf("Event processing canceled for session: %s", sessionID))
@@ -454,6 +469,13 @@ func createAgentProvider(agentName config.AgentName) (provider.Provider, error) 
 			opts,
 			provider.WithOpenAIOptions(
 				provider.WithReasoningEffort(agentConfig.ReasoningEffort),
+			),
+		)
+	} else if model.Provider == models.ProviderAnthropic && model.CanReason {
+		opts = append(
+			opts,
+			provider.WithAnthropicOptions(
+				provider.WithAnthropicShouldThinkFn(provider.DefaultShouldThinkFn),
 			),
 		)
 	}

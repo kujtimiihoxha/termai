@@ -7,13 +7,6 @@ import (
 
 const bufferSize = 1024
 
-type Logger interface {
-	Debug(msg string, args ...any)
-	Info(msg string, args ...any)
-	Warn(msg string, args ...any)
-	Error(msg string, args ...any)
-}
-
 // Broker allows clients to publish events and subscribe to events
 type Broker[T any] struct {
 	subs map[chan Event[T]]struct{} // subscriptions

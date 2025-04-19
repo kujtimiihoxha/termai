@@ -113,18 +113,10 @@ func renderAssistantMessage(
 	width int,
 	position int,
 ) []uiMessage {
-	// find the user message that is before this assistant message
-	var userMsg message.Message
-	for i := msgIndex - 1; i >= 0; i-- {
-		msg := allMessages[i]
-		if msg.Role == message.User {
-			userMsg = allMessages[i]
-			break
-		}
-	}
-
 	messages := []uiMessage{}
 	content := msg.Content().String()
+	thinking := msg.IsThinking()
+	thinkingContent := msg.ReasoningContent().Thinking
 	finished := msg.IsFinished()
 	finishData := msg.FinishPart()
 	info := []string{}
@@ -133,7 +125,7 @@ func renderAssistantMessage(
 	if finished {
 		switch finishData.Reason {
 		case message.FinishReasonEndTurn:
-			took := formatTimeDifference(userMsg.CreatedAt, finishData.Time)
+			took := formatTimeDifference(msg.CreatedAt, finishData.Time)
 			info = append(info, styles.BaseStyle.Width(width-1).Foreground(styles.ForgroundDim).Render(
 				fmt.Sprintf(" %s (%s)", models.SupportedModels[msg.Model].Name, took),
 			))
@@ -166,6 +158,9 @@ func renderAssistantMessage(
 		})
 		position += messages[0].height
 		position++ // for the space
+	} else if thinking && thinkingContent != "" {
+		// Render the thinking content
+		content = renderMessage(thinkingContent, false, msg.ID == focusedUIMessageId, width)
 	}
 
 	for i, toolCall := range msg.ToolCalls() {
@@ -218,8 +213,38 @@ func toolName(name string) string {
 		return "View"
 	case tools.WriteToolName:
 		return "Write"
+	case tools.PatchToolName:
+		return "Patch"
 	}
 	return name
+}
+
+func getToolAction(name string) string {
+	switch name {
+	case agent.AgentToolName:
+		return "Preparing prompt..."
+	case tools.BashToolName:
+		return "Building command..."
+	case tools.EditToolName:
+		return "Preparing edit..."
+	case tools.FetchToolName:
+		return "Writing fetch..."
+	case tools.GlobToolName:
+		return "Finding files..."
+	case tools.GrepToolName:
+		return "Searching content..."
+	case tools.LSToolName:
+		return "Listing directory..."
+	case tools.SourcegraphToolName:
+		return "Searching code..."
+	case tools.ViewToolName:
+		return "Reading file..."
+	case tools.WriteToolName:
+		return "Preparing write..."
+	case tools.PatchToolName:
+		return "Preparing patch..."
+	}
+	return "Working..."
 }
 
 // renders params, params[0] (params[1]=params[2] ....)
@@ -490,8 +515,47 @@ func renderToolMessage(
 	if nested {
 		width = width - 3
 	}
+	style := styles.BaseStyle.
+		Width(width - 1).
+		BorderLeft(true).
+		BorderStyle(lipgloss.ThickBorder()).
+		PaddingLeft(1).
+		BorderForeground(styles.ForgroundDim)
+
 	response := findToolResponse(toolCall.ID, allMessages)
 	toolName := styles.BaseStyle.Foreground(styles.ForgroundDim).Render(fmt.Sprintf("%s: ", toolName(toolCall.Name)))
+
+	if !toolCall.Finished {
+		// Get a brief description of what the tool is doing
+		toolAction := getToolAction(toolCall.Name)
+
+		// toolInput := strings.ReplaceAll(toolCall.Input, "\n", " ")
+		// truncatedInput := toolInput
+		// if len(truncatedInput) > 10 {
+		// 	truncatedInput = truncatedInput[len(truncatedInput)-10:]
+		// }
+		//
+		// truncatedInput = styles.BaseStyle.
+		// 	Italic(true).
+		// 	Width(width - 2 - lipgloss.Width(toolName)).
+		// 	Background(styles.BackgroundDim).
+		// 	Foreground(styles.ForgroundMid).
+		// 	Render(truncatedInput)
+
+		progressText := styles.BaseStyle.
+			Width(width - 2 - lipgloss.Width(toolName)).
+			Foreground(styles.ForgroundDim).
+			Render(fmt.Sprintf("%s", toolAction))
+
+		content := style.Render(lipgloss.JoinHorizontal(lipgloss.Left, toolName, progressText))
+		toolMsg := uiMessage{
+			messageType: toolMessageType,
+			position:    position,
+			height:      lipgloss.Height(content),
+			content:     content,
+		}
+		return toolMsg
+	}
 	params := renderToolParams(width-2-lipgloss.Width(toolName), toolCall)
 	responseContent := ""
 	if response != nil {
@@ -504,12 +568,6 @@ func renderToolMessage(
 			Foreground(styles.ForgroundDim).
 			Render("Waiting for response...")
 	}
-	style := styles.BaseStyle.
-		Width(width - 1).
-		BorderLeft(true).
-		BorderStyle(lipgloss.ThickBorder()).
-		PaddingLeft(1).
-		BorderForeground(styles.ForgroundDim)
 
 	parts := []string{}
 	if !nested {

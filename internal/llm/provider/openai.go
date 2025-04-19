@@ -344,10 +344,11 @@ func (o *openaiClient) toolCalls(completion openai.ChatCompletion) []message.Too
 	if len(completion.Choices) > 0 && len(completion.Choices[0].Message.ToolCalls) > 0 {
 		for _, call := range completion.Choices[0].Message.ToolCalls {
 			toolCall := message.ToolCall{
-				ID:    call.ID,
-				Name:  call.Function.Name,
-				Input: call.Function.Arguments,
-				Type:  "function",
+				ID:       call.ID,
+				Name:     call.Function.Name,
+				Input:    call.Function.Arguments,
+				Type:     "function",
+				Finished: true,
 			}
 			toolCalls = append(toolCalls, toolCall)
 		}

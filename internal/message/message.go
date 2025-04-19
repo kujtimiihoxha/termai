@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/kujtimiihoxha/opencode/internal/db"
@@ -116,6 +117,7 @@ func (s *service) Update(ctx context.Context, message Message) error {
 	if err != nil {
 		return err
 	}
+	message.UpdatedAt = time.Now().Unix()
 	s.Publish(pubsub.UpdatedEvent, message)
 	return nil
 }

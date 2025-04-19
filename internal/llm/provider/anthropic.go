@@ -93,8 +93,7 @@ func (a *anthropicClient) convertMessages(messages []message.Message) (anthropic
 			}
 
 			if len(blocks) == 0 {
-				logging.Warn("There is a message without content, investigate")
-				// This should never happend but we log this because we might have a bug in our cleanup method
+				logging.Warn("There is a message without content, investigate, this should not happen")
 				continue
 			}
 			anthropicMessages = append(anthropicMessages, anthropic.NewAssistantMessage(blocks...))
@@ -196,8 +195,8 @@ func (a *anthropicClient) send(ctx context.Context, messages []message.Message, 
 	preparedMessages := a.preparedMessages(a.convertMessages(messages), a.convertTools(tools))
 	cfg := config.Get()
 	if cfg.Debug {
-		jsonData, _ := json.Marshal(preparedMessages)
-		logging.Debug("Prepared messages", "messages", string(jsonData))
+		// jsonData, _ := json.Marshal(preparedMessages)
+		// logging.Debug("Prepared messages", "messages", string(jsonData))
 	}
 	attempts := 0
 	for {
@@ -243,8 +242,8 @@ func (a *anthropicClient) stream(ctx context.Context, messages []message.Message
 	preparedMessages := a.preparedMessages(a.convertMessages(messages), a.convertTools(tools))
 	cfg := config.Get()
 	if cfg.Debug {
-		jsonData, _ := json.Marshal(preparedMessages)
-		logging.Debug("Prepared messages", "messages", string(jsonData))
+		// jsonData, _ := json.Marshal(preparedMessages)
+		// logging.Debug("Prepared messages", "messages", string(jsonData))
 	}
 	attempts := 0
 	eventChan := make(chan ProviderEvent)
@@ -257,6 +256,7 @@ func (a *anthropicClient) stream(ctx context.Context, messages []message.Message
 			)
 			accumulatedMessage := anthropic.Message{}
 
+			currentToolCallID := ""
 			for anthropicStream.Next() {
 				event := anthropicStream.Current()
 				err := accumulatedMessage.Accumulate(event)
@@ -267,7 +267,19 @@ func (a *anthropicClient) stream(ctx context.Context, messages []message.Message
 
 				switch event := event.AsAny().(type) {
 				case anthropic.ContentBlockStartEvent:
-					eventChan <- ProviderEvent{Type: EventContentStart}
+					if event.ContentBlock.Type == "text" {
+						eventChan <- ProviderEvent{Type: EventContentStart}
+					} else if event.ContentBlock.Type == "tool_use" {
+						currentToolCallID = event.ContentBlock.ID
+						eventChan <- ProviderEvent{
+							Type: EventToolUseStart,
+							ToolCall: &message.ToolCall{
+								ID:       event.ContentBlock.ID,
+								Name:     event.ContentBlock.Name,
+								Finished: false,
+							},
+						}
+					}
 
 				case anthropic.ContentBlockDeltaEvent:
 					if event.Delta.Type == "thinking_delta" && event.Delta.Thinking != "" {
@@ -280,11 +292,30 @@ func (a *anthropicClient) stream(ctx context.Context, messages []message.Message
 							Type:    EventContentDelta,
 							Content: event.Delta.Text,
 						}
+					} else if event.Delta.Type == "input_json_delta" {
+						if currentToolCallID != "" {
+							eventChan <- ProviderEvent{
+								Type: EventToolUseDelta,
+								ToolCall: &message.ToolCall{
+									ID:       currentToolCallID,
+									Finished: false,
+									Input:    event.Delta.JSON.PartialJSON.Raw(),
+								},
+							}
+						}
 					}
-				// TODO: check if we can somehow stream tool calls
-
 				case anthropic.ContentBlockStopEvent:
-					eventChan <- ProviderEvent{Type: EventContentStop}
+					if currentToolCallID != "" {
+						eventChan <- ProviderEvent{
+							Type: EventToolUseStop,
+							ToolCall: &message.ToolCall{
+								ID: currentToolCallID,
+							},
+						}
+						currentToolCallID = ""
+					} else {
+						eventChan <- ProviderEvent{Type: EventContentStop}
+					}
 
 				case anthropic.MessageStopEvent:
 					content := ""
@@ -378,10 +409,11 @@ func (a *anthropicClient) toolCalls(msg anthropic.Message) []message.ToolCall {
 		switch variant := block.AsAny().(type) {
 		case anthropic.ToolUseBlock:
 			toolCall := message.ToolCall{
-				ID:    variant.ID,
-				Name:  variant.Name,
-				Input: string(variant.Input),
-				Type:  string(variant.Type),
+				ID:       variant.ID,
+				Name:     variant.Name,
+				Input:    string(variant.Input),
+				Type:     string(variant.Type),
+				Finished: true,
 			}
 			toolCalls = append(toolCalls, toolCall)
 		}

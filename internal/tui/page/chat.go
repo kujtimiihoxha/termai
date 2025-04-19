@@ -57,6 +57,14 @@ func (p *chatPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if cmd != nil {
 			return p, cmd
 		}
+	case chat.SessionSelectedMsg:
+		if p.session.ID == "" {
+			cmd := p.setSidebar()
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
+		p.session = msg
 	case chat.EditorFocusMsg:
 		p.editingMode = bool(msg)
 	case tea.KeyMsg:
@@ -91,7 +99,7 @@ func (p *chatPage) setSidebar() tea.Cmd {
 }
 
 func (p *chatPage) clearSidebar() tea.Cmd {
-	return p.layout.SetRightPanel(nil)
+	return p.layout.ClearRightPanel()
 }
 
 func (p *chatPage) sendMessage(text string) tea.Cmd {

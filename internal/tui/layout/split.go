@@ -14,6 +14,10 @@ type SplitPaneLayout interface {
 	SetLeftPanel(panel Container) tea.Cmd
 	SetRightPanel(panel Container) tea.Cmd
 	SetBottomPanel(panel Container) tea.Cmd
+
+	ClearLeftPanel() tea.Cmd
+	ClearRightPanel() tea.Cmd
+	ClearBottomPanel() tea.Cmd
 }
 
 type splitPaneLayout struct {
@@ -186,6 +190,30 @@ func (s *splitPaneLayout) SetRightPanel(panel Container) tea.Cmd {
 
 func (s *splitPaneLayout) SetBottomPanel(panel Container) tea.Cmd {
 	s.bottomPanel = panel
+	if s.width > 0 && s.height > 0 {
+		return s.SetSize(s.width, s.height)
+	}
+	return nil
+}
+
+func (s *splitPaneLayout) ClearLeftPanel() tea.Cmd {
+	s.leftPanel = nil
+	if s.width > 0 && s.height > 0 {
+		return s.SetSize(s.width, s.height)
+	}
+	return nil
+}
+
+func (s *splitPaneLayout) ClearRightPanel() tea.Cmd {
+	s.rightPanel = nil
+	if s.width > 0 && s.height > 0 {
+		return s.SetSize(s.width, s.height)
+	}
+	return nil
+}
+
+func (s *splitPaneLayout) ClearBottomPanel() tea.Cmd {
+	s.bottomPanel = nil
 	if s.width > 0 && s.height > 0 {
 		return s.SetSize(s.width, s.height)
 	}

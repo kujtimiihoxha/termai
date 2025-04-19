@@ -15,6 +15,9 @@ const maxRetries = 8
 
 const (
 	EventContentStart  EventType = "content_start"
+	EventToolUseStart  EventType = "tool_use_start"
+	EventToolUseDelta  EventType = "tool_use_delta"
+	EventToolUseStop   EventType = "tool_use_stop"
 	EventContentDelta  EventType = "content_delta"
 	EventThinkingDelta EventType = "thinking_delta"
 	EventContentStop   EventType = "content_stop"
@@ -43,8 +46,8 @@ type ProviderEvent struct {
 	Content  string
 	Thinking string
 	Response *ProviderResponse
-
-	Error error
+	ToolCall *message.ToolCall
+	Error    error
 }
 type Provider interface {
 	SendMessages(ctx context.Context, messages []message.Message, tools []tools.BaseTool) (*ProviderResponse, error)

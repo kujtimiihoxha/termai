@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"sync"
-	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -13,7 +11,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/kujtimiihoxha/opencode/internal/app"
-	"github.com/kujtimiihoxha/opencode/internal/logging"
 	"github.com/kujtimiihoxha/opencode/internal/message"
 	"github.com/kujtimiihoxha/opencode/internal/pubsub"
 	"github.com/kujtimiihoxha/opencode/internal/session"
@@ -35,89 +32,14 @@ type messagesCmp struct {
 	messages      []message.Message
 	uiMessages    []uiMessage
 	currentMsgID  string
-	mutex         sync.Mutex
 	cachedContent map[string]cacheItem
 	spinner       spinner.Model
-	lastUpdate    time.Time
 	rendering     bool
 }
 type renderFinishedMsg struct{}
 
 func (m *messagesCmp) Init() tea.Cmd {
-	return tea.Batch(m.viewport.Init())
-}
-
-func (m *messagesCmp) preloadSessions() tea.Cmd {
-	return func() tea.Msg {
-		m.mutex.Lock()
-		defer m.mutex.Unlock()
-		sessions, err := m.app.Sessions.List(context.Background())
-		if err != nil {
-			return util.ReportError(err)()
-		}
-		if len(sessions) == 0 {
-			return nil
-		}
-		if len(sessions) > 20 {
-			sessions = sessions[:20]
-		}
-		for _, s := range sessions {
-			messages, err := m.app.Messages.List(context.Background(), s.ID)
-			if err != nil {
-				return util.ReportError(err)()
-			}
-			if len(messages) == 0 {
-				continue
-			}
-			m.cacheSessionMessages(messages, m.width)
-
-		}
-		logging.Debug("preloaded sessions")
-
-		return func() tea.Msg {
-			return renderFinishedMsg{}
-		}
-	}
-}
-
-func (m *messagesCmp) cacheSessionMessages(messages []message.Message, width int) {
-	pos := 0
-	if m.width == 0 {
-		return
-	}
-	for inx, msg := range messages {
-		switch msg.Role {
-		case message.User:
-			userMsg := renderUserMessage(
-				msg,
-				false,
-				width,
-				pos,
-			)
-			m.cachedContent[msg.ID] = cacheItem{
-				width:   width,
-				content: []uiMessage{userMsg},
-			}
-			pos += userMsg.height + 1 // + 1 for spacing
-		case message.Assistant:
-			assistantMessages := renderAssistantMessage(
-				msg,
-				inx,
-				messages,
-				m.app.Messages,
-				"",
-				width,
-				pos,
-			)
-			for _, msg := range assistantMessages {
-				pos += msg.height + 1 // + 1 for spacing
-			}
-			m.cachedContent[msg.ID] = cacheItem{
-				width:   width,
-				content: assistantMessages,
-			}
-		}
-	}
+	return tea.Batch(m.viewport.Init(), m.spinner.Tick)
 }
 
 func (m *messagesCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -360,21 +282,35 @@ func hasToolsWithoutResponse(messages []message.Message) bool {
 				break
 			}
 		}
-		if !found {
+		if !found && v.Finished {
 			return true
 		}
 	}
+	return false
+}
 
+func hasUnfinishedToolCalls(messages []message.Message) bool {
+	toolCalls := make([]message.ToolCall, 0)
+	for _, m := range messages {
+		toolCalls = append(toolCalls, m.ToolCalls()...)
+	}
+	for _, v := range toolCalls {
+		if !v.Finished {
+			return true
+		}
+	}
 	return false
 }
 
 func (m *messagesCmp) working() string {
 	text := ""
-	if m.IsAgentWorking() {
+	if m.IsAgentWorking() && len(m.messages) > 0 {
 		task := "Thinking..."
 		lastMessage := m.messages[len(m.messages)-1]
 		if hasToolsWithoutResponse(m.messages) {
 			task = "Waiting for tool response..."
+		} else if hasUnfinishedToolCalls(m.messages) {
+			task = "Building tool call..."
 		} else if !lastMessage.IsFinished() {
 			task = "Generating..."
 		}
@@ -434,8 +370,7 @@ func (m *messagesCmp) SetSize(width, height int) tea.Cmd {
 		delete(m.cachedContent, msg.ID)
 	}
 	m.uiMessages = make([]uiMessage, 0)
-	m.renderView()
-	return m.preloadSessions()
+	return nil
 }
 
 func (m *messagesCmp) GetSize() (int, int) {
@@ -446,16 +381,16 @@ func (m *messagesCmp) SetSession(session session.Session) tea.Cmd {
 	if m.session.ID == session.ID {
 		return nil
 	}
+	m.session = session
+	messages, err := m.app.Messages.List(context.Background(), session.ID)
+	if err != nil {
+		return util.ReportError(err)
+	}
+	m.messages = messages
+	m.currentMsgID = m.messages[len(m.messages)-1].ID
+	delete(m.cachedContent, m.currentMsgID)
 	m.rendering = true
 	return func() tea.Msg {
-		m.session = session
-		messages, err := m.app.Messages.List(context.Background(), session.ID)
-		if err != nil {
-			return util.ReportError(err)
-		}
-		m.messages = messages
-		m.currentMsgID = m.messages[len(m.messages)-1].ID
-		delete(m.cachedContent, m.currentMsgID)
 		m.renderView()
 		return renderFinishedMsg{}
 	}
