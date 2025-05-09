@@ -303,5 +303,58 @@ func generateSchema() map[string]any {
 		},
 	}
 
+	// Add keymap definitions & configuration
+	keymapDefs := map[string]struct {
+		DefaultKeys           []string
+		DefaultKeymapDisplay  string
+		DefaultCommandDisplay string
+	}{
+		"logs":                {config.DefaultKeymaps.Logs.Keys, config.DefaultKeymaps.Logs.KeymapDisplay, config.DefaultKeymaps.Logs.CommandDisplay},
+		"quit":                {config.DefaultKeymaps.Quit.Keys, config.DefaultKeymaps.Quit.KeymapDisplay, config.DefaultKeymaps.Quit.CommandDisplay},
+		"help":                {config.DefaultKeymaps.Help.Keys, config.DefaultKeymaps.Help.KeymapDisplay, config.DefaultKeymaps.Help.CommandDisplay},
+		"switch_session":      {config.DefaultKeymaps.SwitchSession.Keys, config.DefaultKeymaps.SwitchSession.KeymapDisplay, config.DefaultKeymaps.SwitchSession.CommandDisplay},
+		"commands":            {config.DefaultKeymaps.Commands.Keys, config.DefaultKeymaps.Commands.KeymapDisplay, config.DefaultKeymaps.Commands.CommandDisplay},
+		"switch_theme":        {config.DefaultKeymaps.SwitchTheme.Keys, config.DefaultKeymaps.SwitchTheme.KeymapDisplay, config.DefaultKeymaps.SwitchTheme.CommandDisplay},
+		"help_esc":            {config.DefaultKeymaps.HelpEsc.Keys, config.DefaultKeymaps.HelpEsc.KeymapDisplay, config.DefaultKeymaps.HelpEsc.CommandDisplay},
+		"return_key":          {config.DefaultKeymaps.ReturnKey.Keys, config.DefaultKeymaps.ReturnKey.KeymapDisplay, config.DefaultKeymaps.ReturnKey.CommandDisplay},
+		"models":              {config.DefaultKeymaps.Models.Keys, config.DefaultKeymaps.Models.KeymapDisplay, config.DefaultKeymaps.Models.CommandDisplay},
+		"logs_key_return_key": {config.DefaultKeymaps.LogsKeyReturnKey.Keys, config.DefaultKeymaps.LogsKeyReturnKey.KeymapDisplay, config.DefaultKeymaps.LogsKeyReturnKey.CommandDisplay},
+	}
+
+	keymapProperties := map[string]any{}
+	for name, def := range keymapDefs {
+		keymapProperties[name] = map[string]any{
+			"type":        "object",
+			"description": def.DefaultCommandDisplay,
+			"properties": map[string]any{
+				"keys": map[string]any{
+					"type":        "array",
+					"description": "Keyboard shortcuts",
+					"items": map[string]any{
+						"type": "string",
+					},
+					"default": def.DefaultKeys,
+				},
+				"keymap_display": map[string]any{
+					"type":        "string",
+					"description": "UI label",
+					"default":     def.DefaultKeymapDisplay,
+				},
+				"command_display": map[string]any{
+					"type":        "string",
+					"description": "UI label",
+					"default":     def.DefaultCommandDisplay,
+				},
+			},
+			"required": []string{"keys", "keymap_display", "command_display"},
+		}
+	}
+
+	schema["properties"].(map[string]any)["keymaps"] = map[string]any{
+		"type":        "object",
+		"description": "Keymap configurations",
+		"properties":  keymapProperties,
+	}
+
 	return schema
 }

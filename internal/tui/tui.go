@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -20,74 +21,19 @@ import (
 	"github.com/opencode-ai/opencode/internal/tui/util"
 )
 
-type keyMap struct {
-	Logs          key.Binding
-	Quit          key.Binding
-	Help          key.Binding
-	SwitchSession key.Binding
-	Commands      key.Binding
-	Filepicker    key.Binding
-	Models        key.Binding
-	SwitchTheme   key.Binding
+type keybinds struct {
+	Logs             key.Binding
+	Quit             key.Binding
+	Help             key.Binding
+	SwitchSession    key.Binding
+	SwitchTheme      key.Binding
+	Commands         key.Binding
+	FilePicker       key.Binding
+	Models           key.Binding
+	HelpEsc          key.Binding
+	ReturnKey        key.Binding
+	LogsKeyReturnKey key.Binding
 }
-
-const (
-	quitKey = "q"
-)
-
-var keys = keyMap{
-	Logs: key.NewBinding(
-		key.WithKeys("ctrl+l"),
-		key.WithHelp("ctrl+l", "logs"),
-	),
-
-	Quit: key.NewBinding(
-		key.WithKeys("ctrl+c"),
-		key.WithHelp("ctrl+c", "quit"),
-	),
-	Help: key.NewBinding(
-		key.WithKeys("ctrl+_"),
-		key.WithHelp("ctrl+?", "toggle help"),
-	),
-
-	SwitchSession: key.NewBinding(
-		key.WithKeys("ctrl+s"),
-		key.WithHelp("ctrl+s", "switch session"),
-	),
-
-	Commands: key.NewBinding(
-		key.WithKeys("ctrl+k"),
-		key.WithHelp("ctrl+k", "commands"),
-	),
-	Filepicker: key.NewBinding(
-		key.WithKeys("ctrl+f"),
-		key.WithHelp("ctrl+f", "select files to upload"),
-	),
-	Models: key.NewBinding(
-		key.WithKeys("ctrl+o"),
-		key.WithHelp("ctrl+o", "model selection"),
-	),
-
-	SwitchTheme: key.NewBinding(
-		key.WithKeys("ctrl+t"),
-		key.WithHelp("ctrl+t", "switch theme"),
-	),
-}
-
-var helpEsc = key.NewBinding(
-	key.WithKeys("?"),
-	key.WithHelp("?", "toggle help"),
-)
-
-var returnKey = key.NewBinding(
-	key.WithKeys("esc"),
-	key.WithHelp("esc", "close"),
-)
-
-var logsKeyReturnKey = key.NewBinding(
-	key.WithKeys("esc", "backspace", quitKey),
-	key.WithHelp("esc/q", "go back"),
-)
 
 type appModel struct {
 	width, height int
@@ -125,6 +71,33 @@ type appModel struct {
 
 	showThemeDialog bool
 	themeDialog     dialog.ThemeDialog
+
+	keymapConfig config.Keymaps
+	keybinds     keybinds
+}
+
+func keybindsFromKeymap(keymap config.Keymaps) keybinds {
+	return keybinds{
+		Logs:             key.NewBinding(key.WithKeys(keymap.Logs.Keys...), key.WithHelp(keymap.Logs.KeymapDisplay, keymap.Logs.CommandDisplay)),
+		Quit:             key.NewBinding(key.WithKeys(keymap.Quit.Keys...), key.WithHelp(keymap.Quit.KeymapDisplay, keymap.Quit.CommandDisplay)),
+		Help:             key.NewBinding(key.WithKeys(keymap.Help.Keys...), key.WithHelp(keymap.Help.KeymapDisplay, keymap.Help.CommandDisplay)),
+		SwitchSession:    key.NewBinding(key.WithKeys(keymap.SwitchSession.Keys...), key.WithHelp(keymap.SwitchSession.KeymapDisplay, keymap.SwitchSession.CommandDisplay)),
+		SwitchTheme:      key.NewBinding(key.WithKeys(keymap.SwitchTheme.Keys...), key.WithHelp(keymap.SwitchTheme.KeymapDisplay, keymap.SwitchTheme.CommandDisplay)),
+		Commands:         key.NewBinding(key.WithKeys(keymap.Commands.Keys...), key.WithHelp(keymap.Commands.KeymapDisplay, keymap.Commands.CommandDisplay)),
+		FilePicker:       key.NewBinding(key.WithKeys(keymap.FilePicker.Keys...), key.WithHelp(keymap.FilePicker.KeymapDisplay, keymap.FilePicker.CommandDisplay)),
+		Models:           key.NewBinding(key.WithKeys(keymap.Models.Keys...), key.WithHelp(keymap.Models.KeymapDisplay, keymap.Models.CommandDisplay)),
+		HelpEsc:          key.NewBinding(key.WithKeys(keymap.HelpEsc.Keys...), key.WithHelp(keymap.HelpEsc.KeymapDisplay, keymap.HelpEsc.CommandDisplay)),
+		ReturnKey:        key.NewBinding(key.WithKeys(keymap.ReturnKey.Keys...), key.WithHelp(keymap.ReturnKey.KeymapDisplay, keymap.ReturnKey.CommandDisplay)),
+		LogsKeyReturnKey: key.NewBinding(key.WithKeys(keymap.LogsKeyReturnKey.Keys...), key.WithHelp(keymap.LogsKeyReturnKey.KeymapDisplay, keymap.LogsKeyReturnKey.CommandDisplay)),
+	}
+}
+
+func getKeys() (config.Keymaps, keybinds) {
+	cfg := config.Get()
+	if cfg == nil || cfg.Keymaps.Logs.Keys == nil {
+		return config.DefaultKeymaps, keybindsFromKeymap(config.DefaultKeymaps)
+	}
+	return cfg.Keymaps, keybindsFromKeymap(cfg.Keymaps)
 }
 
 func (a appModel) Init() tea.Cmd {
@@ -349,8 +322,7 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch {
-
-		case key.Matches(msg, keys.Quit):
+		case key.Matches(msg, a.keybinds.Quit):
 			a.showQuit = !a.showQuit
 			if a.showHelp {
 				a.showHelp = false
@@ -369,7 +341,7 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.showModelDialog = false
 			}
 			return a, nil
-		case key.Matches(msg, keys.SwitchSession):
+		case key.Matches(msg, a.keybinds.SwitchSession):
 			if a.currentPage == page.ChatPage && !a.showQuit && !a.showPermissions && !a.showCommandDialog {
 				// Load sessions and show the dialog
 				sessions, err := a.app.Sessions.List(context.Background())
@@ -384,7 +356,7 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return a, nil
 			}
 			return a, nil
-		case key.Matches(msg, keys.Commands):
+		case key.Matches(msg, a.keybinds.Commands):
 			if a.currentPage == page.ChatPage && !a.showQuit && !a.showPermissions && !a.showSessionDialog && !a.showThemeDialog && !a.showFilepicker {
 				// Show commands dialog
 				if len(a.commands) == 0 {
@@ -395,7 +367,7 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return a, nil
 			}
 			return a, nil
-		case key.Matches(msg, keys.Models):
+		case key.Matches(msg, a.keybinds.Models):
 			if a.showModelDialog {
 				a.showModelDialog = false
 				return a, nil
@@ -405,7 +377,7 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return a, nil
 			}
 			return a, nil
-		case key.Matches(msg, keys.SwitchTheme):
+		case key.Matches(msg, a.keybinds.SwitchTheme):
 			if !a.showQuit && !a.showPermissions && !a.showSessionDialog && !a.showCommandDialog {
 				// Show theme switcher dialog
 				a.showThemeDialog = true
@@ -413,8 +385,8 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return a, a.themeDialog.Init()
 			}
 			return a, nil
-		case key.Matches(msg, returnKey) || key.Matches(msg):
-			if msg.String() == quitKey {
+		case key.Matches(msg, a.keybinds.LogsKeyReturnKey) || key.Matches(msg):
+			if slices.Contains(a.keybinds.LogsKeyReturnKey.Keys(), msg.String()) {
 				if a.currentPage == page.LogsPage {
 					return a, a.moveToPage(page.ChatPage)
 				}
@@ -444,15 +416,15 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return a, a.moveToPage(page.ChatPage)
 				}
 			}
-		case key.Matches(msg, keys.Logs):
+		case key.Matches(msg, a.keybinds.Logs):
 			return a, a.moveToPage(page.LogsPage)
-		case key.Matches(msg, keys.Help):
+		case key.Matches(msg, a.keybinds.Help):
 			if a.showQuit {
 				return a, nil
 			}
 			a.showHelp = !a.showHelp
 			return a, nil
-		case key.Matches(msg, helpEsc):
+		case key.Matches(msg, a.keybinds.HelpEsc):
 			if a.app.CoderAgent.IsBusy() {
 				if a.showQuit {
 					return a, nil
@@ -460,7 +432,7 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.showHelp = !a.showHelp
 				return a, nil
 			}
-		case key.Matches(msg, keys.Filepicker):
+		case key.Matches(msg, a.keybinds.FilePicker):
 			a.showFilepicker = !a.showFilepicker
 			a.filepicker.ToggleFilepicker(a.showFilepicker)
 			return a, nil
@@ -626,26 +598,38 @@ func (a appModel) View() string {
 	}
 
 	if !a.app.CoderAgent.IsBusy() {
-		a.status.SetHelpWidgetMsg("ctrl+? help")
+		a.status.SetHelpWidgetMsg(fmt.Sprintf("%s help", a.keymapConfig.Help.KeymapDisplay))
 	} else {
-		a.status.SetHelpWidgetMsg("? help")
+		a.status.SetHelpWidgetMsg(fmt.Sprintf("%s help", a.keymapConfig.HelpEsc.KeymapDisplay))
 	}
 
 	if a.showHelp {
-		bindings := layout.KeyMapToSlice(keys)
+		bindings := layout.KeyMapToSlice(a.keybinds)
 		if p, ok := a.pages[a.currentPage].(layout.Bindings); ok {
 			bindings = append(bindings, p.BindingKeys()...)
 		}
+
+		hide := map[string]struct{}{
+			a.keymapConfig.HelpEsc.KeymapDisplay:          {},
+			a.keymapConfig.ReturnKey.KeymapDisplay:        {},
+			a.keymapConfig.LogsKeyReturnKey.KeymapDisplay: {},
+		}
+
+		filteredBindings := slices.DeleteFunc(bindings, func(b key.Binding) bool {
+			_, skip := hide[b.Help().Key]
+			return skip
+		})
+
 		if a.showPermissions {
-			bindings = append(bindings, a.permissions.BindingKeys()...)
+			filteredBindings = append(filteredBindings, a.permissions.BindingKeys()...)
 		}
 		if a.currentPage == page.LogsPage {
-			bindings = append(bindings, logsKeyReturnKey)
+			filteredBindings = append(filteredBindings, a.keybinds.LogsKeyReturnKey)
 		}
 		if !a.app.CoderAgent.IsBusy() {
-			bindings = append(bindings, helpEsc)
+			filteredBindings = append(filteredBindings, a.keybinds.HelpEsc)
 		}
-		a.help.SetBindings(bindings)
+		a.help.SetBindings(filteredBindings)
 
 		overlay := a.help.View()
 		row := lipgloss.Height(appView) / 2
@@ -752,6 +736,7 @@ func (a appModel) View() string {
 
 func New(app *app.App) tea.Model {
 	startPage := page.ChatPage
+	keymapConfig, keybinds := getKeys()
 	model := &appModel{
 		currentPage:   startPage,
 		loadedPages:   make(map[page.PageID]bool),
@@ -770,7 +755,9 @@ func New(app *app.App) tea.Model {
 			page.ChatPage: page.NewChatPage(app),
 			page.LogsPage: page.NewLogsPage(),
 		},
-		filepicker: dialog.NewFilepickerCmp(app),
+		keymapConfig: keymapConfig,
+		keybinds:     keybinds,
+		filepicker:   dialog.NewFilepickerCmp(app),
 	}
 
 	model.RegisterCommand(dialog.Command{

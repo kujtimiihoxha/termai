@@ -67,6 +67,27 @@ type LSPConfig struct {
 	Options  any      `json:"options"`
 }
 
+type KeymapConfig struct {
+	Keys           []string `json:"keys" mapstructure:"keys"`
+	KeymapDisplay  string   `json:"keymap_display" mapstructure:"keymap_display"`
+	CommandDisplay string   `json:"command_display" mapstructure:"command_display"`
+}
+
+// Keymap defines a keymap for the TUI.
+type Keymaps struct {
+	Logs             KeymapConfig `json:"logs"`
+	Quit             KeymapConfig `json:"quit"`
+	Help             KeymapConfig `json:"help"`
+	SwitchSession    KeymapConfig `json:"switch_session" mapstructure:"switch_session"`
+	Commands         KeymapConfig `json:"commands"`
+	FilePicker       KeymapConfig `json:"file_picker" mapstructure:"file_picker"`
+	SwitchTheme      KeymapConfig `json:"switch_theme" mapstructure:"switch_theme"`
+	HelpEsc          KeymapConfig `json:"help_esc" mapstructure:"help_esc"`
+	ReturnKey        KeymapConfig `json:"return_key" mapstructure:"return_key"`
+	LogsKeyReturnKey KeymapConfig `json:"logs_key_return_key" mapstructure:"logs_key_return_key"`
+	Models           KeymapConfig `json:"models"`
+}
+
 // TUIConfig defines the configuration for the Terminal User Interface.
 type TUIConfig struct {
 	Theme string `json:"theme,omitempty"`
@@ -79,6 +100,7 @@ type Config struct {
 	MCPServers   map[string]MCPServer              `json:"mcpServers,omitempty"`
 	Providers    map[models.ModelProvider]Provider `json:"providers,omitempty"`
 	LSP          map[string]LSPConfig              `json:"lsp,omitempty"`
+	Keymaps      Keymaps                           `json:"keymaps,omitzero"`
 	Agents       map[AgentName]Agent               `json:"agents"`
 	Debug        bool                              `json:"debug,omitempty"`
 	DebugLSP     bool                              `json:"debugLSP,omitempty"`
@@ -109,6 +131,20 @@ var defaultContextPaths = []string{
 	"OPENCODE.local.md",
 }
 
+var DefaultKeymaps = Keymaps{
+	Logs:             KeymapConfig{Keys: []string{"ctrl+l"}, KeymapDisplay: "ctrl+l", CommandDisplay: "logs"},
+	Quit:             KeymapConfig{Keys: []string{"ctrl+c"}, KeymapDisplay: "ctrl+c", CommandDisplay: "quit"},
+	Help:             KeymapConfig{Keys: []string{"ctrl+_"}, KeymapDisplay: "ctrl+?", CommandDisplay: "toggle help"},
+	SwitchSession:    KeymapConfig{Keys: []string{"ctrl+a"}, KeymapDisplay: "ctrl+a", CommandDisplay: "switch session"},
+	Commands:         KeymapConfig{Keys: []string{"ctrl+k"}, KeymapDisplay: "ctrl+k", CommandDisplay: "commands"},
+	FilePicker:       KeymapConfig{Keys: []string{"ctrl+f"}, KeymapDisplay: "ctrl+f", CommandDisplay: "select files to upload"},
+	Models:           KeymapConfig{Keys: []string{"ctrl+o"}, KeymapDisplay: "ctrl+o", CommandDisplay: "model selection"},
+	SwitchTheme:      KeymapConfig{Keys: []string{"ctrl+t"}, KeymapDisplay: "ctrl+t", CommandDisplay: "switch theme"},
+	HelpEsc:          KeymapConfig{Keys: []string{"?"}, KeymapDisplay: "?", CommandDisplay: "toggle help"},
+	ReturnKey:        KeymapConfig{Keys: []string{"esc"}, KeymapDisplay: "esc", CommandDisplay: "close"},
+	LogsKeyReturnKey: KeymapConfig{Keys: []string{"esc", "q", "backspace"}, KeymapDisplay: "esc/q", CommandDisplay: "go back"},
+}
+
 // Global configuration instance
 var cfg *Config
 
@@ -125,6 +161,7 @@ func Load(workingDir string, debug bool) (*Config, error) {
 		MCPServers: make(map[string]MCPServer),
 		Providers:  make(map[models.ModelProvider]Provider),
 		LSP:        make(map[string]LSPConfig),
+		Keymaps:    DefaultKeymaps,
 	}
 
 	configureViper()
@@ -194,6 +231,7 @@ func Load(workingDir string, debug bool) (*Config, error) {
 		Model:     cfg.Agents[AgentTitle].Model,
 		MaxTokens: 80,
 	}
+
 	return cfg, nil
 }
 
@@ -212,6 +250,7 @@ func configureViper() {
 func setDefaults(debug bool) {
 	viper.SetDefault("data.directory", defaultDataDirectory)
 	viper.SetDefault("contextPaths", defaultContextPaths)
+	viper.SetDefault("keymaps", DefaultKeymaps)
 	viper.SetDefault("tui.theme", "opencode")
 
 	if debug {
@@ -519,6 +558,91 @@ func validateAgent(cfg *Config, name AgentName, agent Agent) error {
 	return nil
 }
 
+func validateKeymaps(keymaps *Keymaps) error {
+	if keymaps == nil {
+		return fmt.Errorf("keymaps configuration is nil")
+	}
+
+	validateKeymap := func(name string, k KeymapConfig) error {
+		if len(k.Keys) == 0 {
+			return fmt.Errorf("%s keymap has no keys configured", name)
+		}
+		if k.KeymapDisplay == "" {
+			return fmt.Errorf("%s keymap has no display value", name)
+		}
+		if k.CommandDisplay == "" {
+			return fmt.Errorf("%s keymap has no command display value", name)
+		}
+		return nil
+	}
+
+	if err := validateKeymap("logs", keymaps.Logs); err != nil {
+		return err
+	}
+	if err := validateKeymap("quit", keymaps.Quit); err != nil {
+		return err
+	}
+	if err := validateKeymap("help", keymaps.Help); err != nil {
+		return err
+	}
+	if err := validateKeymap("switch_session", keymaps.SwitchSession); err != nil {
+		return err
+	}
+	if err := validateKeymap("commands", keymaps.Commands); err != nil {
+		return err
+	}
+	if err := validateKeymap("models", keymaps.Models); err != nil {
+		return err
+	}
+	if err := validateKeymap("help_esc", keymaps.HelpEsc); err != nil {
+		return err
+	}
+	if err := validateKeymap("return_key", keymaps.ReturnKey); err != nil {
+		return err
+	}
+	if err := validateKeymap("logs_key_return_key", keymaps.LogsKeyReturnKey); err != nil {
+		return err
+	}
+
+	keyBindings := make(map[string]string)
+	checkDuplicates := func(name string, k KeymapConfig) error {
+		for _, key := range k.Keys {
+			if existing, exists := keyBindings[key]; exists {
+				return fmt.Errorf("duplicate key binding '%s' found in %s and %s", key, existing, name)
+			}
+			keyBindings[key] = name
+		}
+		return nil
+	}
+
+	if err := checkDuplicates("logs", keymaps.Logs); err != nil {
+		return err
+	}
+	if err := checkDuplicates("quit", keymaps.Quit); err != nil {
+		return err
+	}
+	if err := checkDuplicates("help", keymaps.Help); err != nil {
+		return err
+	}
+	if err := checkDuplicates("switch_session", keymaps.SwitchSession); err != nil {
+		return err
+	}
+	if err := checkDuplicates("commands", keymaps.Commands); err != nil {
+		return err
+	}
+	if err := checkDuplicates("models", keymaps.Models); err != nil {
+		return err
+	}
+	if err := checkDuplicates("help_esc", keymaps.HelpEsc); err != nil {
+		return err
+	}
+	if err := checkDuplicates("return_key", keymaps.ReturnKey); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // Validate checks if the configuration is valid and applies defaults where needed.
 func Validate() error {
 	if cfg == nil {
@@ -550,6 +674,9 @@ func Validate() error {
 		}
 	}
 
+	if err := validateKeymaps(&cfg.Keymaps); err != nil {
+		return fmt.Errorf("keymap validation failed: %w", err)
+	}
 	return nil
 }
 

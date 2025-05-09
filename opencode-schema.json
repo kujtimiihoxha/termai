@@ -12,63 +12,67 @@
         "model": {
           "description": "Model ID for the agent",
           "enum": [
-            "gpt-4o-mini",
-            "o1-pro",
-            "azure.gpt-4o-mini",
-            "openrouter.gpt-4.1-mini",
-            "openrouter.o1-mini",
-            "bedrock.claude-3.7-sonnet",
-            "meta-llama/llama-4-scout-17b-16e-instruct",
-            "openrouter.gpt-4o-mini",
-            "gemini-2.0-flash",
-            "deepseek-r1-distill-llama-70b",
-            "openrouter.claude-3.7-sonnet",
-            "openrouter.gpt-4.5-preview",
-            "azure.o3-mini",
-            "openrouter.claude-3.5-haiku",
-            "azure.o1-mini",
-            "openrouter.o1",
-            "openrouter.gemini-2.5",
-            "llama-3.3-70b-versatile",
-            "gpt-4.5-preview",
-            "openrouter.claude-3-opus",
-            "openrouter.claude-3.5-sonnet",
+            "azure.o4-mini",
+            "openrouter.claude-3-haiku",
             "o4-mini",
-            "gemini-2.0-flash-lite",
-            "azure.gpt-4.5-preview",
-            "openrouter.gpt-4o",
-            "o1",
-            "azure.gpt-4o",
-            "openrouter.gpt-4.1-nano",
-            "o3",
+            "openrouter.gpt-4.1",
             "gpt-4.1",
+            "o1-pro",
+            "gemini-2.5",
             "azure.o1",
-            "claude-3-haiku",
+            "openrouter.o1",
+            "gpt-4o-mini",
+            "gemini-2.5-flash",
+            "azure.o3",
+            "azure.gpt-4.1-nano",
+            "openrouter.claude-3.7-sonnet",
             "claude-3-opus",
             "gpt-4.1-mini",
+            "azure.gpt-4.1",
+            "openrouter.gpt-4.1-nano",
+            "o1-mini",
+            "meta-llama/llama-4-maverick-17b-128e-instruct",
+            "o1",
+            "o3-mini",
+            "azure.gpt-4o-mini",
+            "openrouter.gemini-2.5",
+            "openrouter.o3",
+            "bedrock.claude-3.7-sonnet",
+            "meta-llama/llama-4-scout-17b-16e-instruct",
+            "openrouter.o3-mini",
+            "grok-3-mini-beta",
+            "o3",
+            "gpt-4.1-nano",
+            "openrouter.o1-mini",
+            "openrouter.gpt-4.5-preview",
+            "claude-3.5-sonnet",
+            "azure.o3-mini",
             "openrouter.o4-mini",
+            "openrouter.gpt-4o",
+            "qwen-qwq",
+            "openrouter.claude-3-opus",
+            "azure.gpt-4o",
+            "gemini-2.0-flash",
+            "openrouter.claude-3.5-haiku",
+            "gpt-4o",
+            "azure.o1-mini",
+            "azure.gpt-4.1-mini",
+            "openrouter.gpt-4o-mini",
+            "openrouter.o1-pro",
+            "grok-3-mini-fast-beta",
+            "claude-3-haiku",
+            "claude-3.7-sonnet",
+            "gemini-2.0-flash-lite",
+            "llama-3.3-70b-versatile",
+            "azure.gpt-4.5-preview",
+            "openrouter.gpt-4.1-mini",
+            "grok-3-beta",
+            "grok-3-fast-beta",
+            "openrouter.claude-3.5-sonnet",
             "openrouter.gemini-2.5-flash",
             "claude-3.5-haiku",
-            "o3-mini",
-            "azure.o3",
-            "gpt-4o",
-            "azure.gpt-4.1",
-            "openrouter.claude-3-haiku",
-            "gpt-4.1-nano",
-            "azure.gpt-4.1-nano",
-            "claude-3.7-sonnet",
-            "gemini-2.5",
-            "azure.o4-mini",
-            "o1-mini",
-            "qwen-qwq",
-            "meta-llama/llama-4-maverick-17b-128e-instruct",
-            "openrouter.gpt-4.1",
-            "openrouter.o1-pro",
-            "openrouter.o3",
-            "claude-3.5-sonnet",
-            "gemini-2.5-flash",
-            "azure.gpt-4.1-mini",
-            "openrouter.o3-mini"
+            "gpt-4.5-preview",
+            "deepseek-r1-distill-llama-70b"
           ],
           "type": "string"
         },
@@ -102,63 +106,67 @@
           "model": {
             "description": "Model ID for the agent",
             "enum": [
-              "gpt-4o-mini",
-              "o1-pro",
-              "azure.gpt-4o-mini",
-              "openrouter.gpt-4.1-mini",
-              "openrouter.o1-mini",
-              "bedrock.claude-3.7-sonnet",
-              "meta-llama/llama-4-scout-17b-16e-instruct",
-              "openrouter.gpt-4o-mini",
-              "gemini-2.0-flash",
-              "deepseek-r1-distill-llama-70b",
-              "openrouter.claude-3.7-sonnet",
-              "openrouter.gpt-4.5-preview",
-              "azure.o3-mini",
-              "openrouter.claude-3.5-haiku",
-              "azure.o1-mini",
-              "openrouter.o1",
-              "openrouter.gemini-2.5",
-              "llama-3.3-70b-versatile",
-              "gpt-4.5-preview",
-              "openrouter.claude-3-opus",
-              "openrouter.claude-3.5-sonnet",
+              "azure.o4-mini",
+              "openrouter.claude-3-haiku",
               "o4-mini",
-              "gemini-2.0-flash-lite",
-              "azure.gpt-4.5-preview",
-              "openrouter.gpt-4o",
-              "o1",
-              "azure.gpt-4o",
-              "openrouter.gpt-4.1-nano",
-              "o3",
+              "openrouter.gpt-4.1",
               "gpt-4.1",
+              "o1-pro",
+              "gemini-2.5",
               "azure.o1",
-              "claude-3-haiku",
+              "openrouter.o1",
+              "gpt-4o-mini",
+              "gemini-2.5-flash",
+              "azure.o3",
+              "azure.gpt-4.1-nano",
+              "openrouter.claude-3.7-sonnet",
               "claude-3-opus",
               "gpt-4.1-mini",
+              "azure.gpt-4.1",
+              "openrouter.gpt-4.1-nano",
+              "o1-mini",
+              "meta-llama/llama-4-maverick-17b-128e-instruct",
+              "o1",
+              "o3-mini",
+              "azure.gpt-4o-mini",
+              "openrouter.gemini-2.5",
+              "openrouter.o3",
+              "bedrock.claude-3.7-sonnet",
+              "meta-llama/llama-4-scout-17b-16e-instruct",
+              "openrouter.o3-mini",
+              "grok-3-mini-beta",
+              "o3",
+              "gpt-4.1-nano",
+              "openrouter.o1-mini",
+              "openrouter.gpt-4.5-preview",
+              "claude-3.5-sonnet",
+              "azure.o3-mini",
               "openrouter.o4-mini",
+              "openrouter.gpt-4o",
+              "qwen-qwq",
+              "openrouter.claude-3-opus",
+              "azure.gpt-4o",
+              "gemini-2.0-flash",
+              "openrouter.claude-3.5-haiku",
+              "gpt-4o",
+              "azure.o1-mini",
+              "azure.gpt-4.1-mini",
+              "openrouter.gpt-4o-mini",
+              "openrouter.o1-pro",
+              "grok-3-mini-fast-beta",
+              "claude-3-haiku",
+              "claude-3.7-sonnet",
+              "gemini-2.0-flash-lite",
+              "llama-3.3-70b-versatile",
+              "azure.gpt-4.5-preview",
+              "openrouter.gpt-4.1-mini",
+              "grok-3-beta",
+              "grok-3-fast-beta",
+              "openrouter.claude-3.5-sonnet",
               "openrouter.gemini-2.5-flash",
               "claude-3.5-haiku",
-              "o3-mini",
-              "azure.o3",
-              "gpt-4o",
-              "azure.gpt-4.1",
-              "openrouter.claude-3-haiku",
-              "gpt-4.1-nano",
-              "azure.gpt-4.1-nano",
-              "claude-3.7-sonnet",
-              "gemini-2.5",
-              "azure.o4-mini",
-              "o1-mini",
-              "qwen-qwq",
-              "meta-llama/llama-4-maverick-17b-128e-instruct",
-              "openrouter.gpt-4.1",
-              "openrouter.o1-pro",
-              "openrouter.o3",
-              "claude-3.5-sonnet",
-              "gemini-2.5-flash",
-              "azure.gpt-4.1-mini",
-              "openrouter.o3-mini"
+              "gpt-4.5-preview",
+              "deepseek-r1-distill-llama-70b"
             ],
             "type": "string"
           },
@@ -234,6 +242,323 @@
       "default": false,
       "description": "Enable LSP debug mode",
       "type": "boolean"
+    },
+    "keymaps": {
+      "description": "Keymap configurations",
+      "properties": {
+        "commands": {
+          "description": "commands",
+          "properties": {
+            "command_display": {
+              "default": "commands",
+              "description": "UI label",
+              "type": "string"
+            },
+            "keymap_display": {
+              "default": "ctrl+k",
+              "description": "UI label",
+              "type": "string"
+            },
+            "keys": {
+              "default": [
+                "ctrl+k"
+              ],
+              "description": "Keyboard shortcuts",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "keys",
+            "keymap_display",
+            "command_display"
+          ],
+          "type": "object"
+        },
+        "help": {
+          "description": "toggle help",
+          "properties": {
+            "command_display": {
+              "default": "toggle help",
+              "description": "UI label",
+              "type": "string"
+            },
+            "keymap_display": {
+              "default": "ctrl+?",
+              "description": "UI label",
+              "type": "string"
+            },
+            "keys": {
+              "default": [
+                "ctrl+_"
+              ],
+              "description": "Keyboard shortcuts",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "keys",
+            "keymap_display",
+            "command_display"
+          ],
+          "type": "object"
+        },
+        "help_esc": {
+          "description": "toggle help",
+          "properties": {
+            "command_display": {
+              "default": "toggle help",
+              "description": "UI label",
+              "type": "string"
+            },
+            "keymap_display": {
+              "default": "?",
+              "description": "UI label",
+              "type": "string"
+            },
+            "keys": {
+              "default": [
+                "?"
+              ],
+              "description": "Keyboard shortcuts",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "keys",
+            "keymap_display",
+            "command_display"
+          ],
+          "type": "object"
+        },
+        "logs": {
+          "description": "logs",
+          "properties": {
+            "command_display": {
+              "default": "logs",
+              "description": "UI label",
+              "type": "string"
+            },
+            "keymap_display": {
+              "default": "ctrl+l",
+              "description": "UI label",
+              "type": "string"
+            },
+            "keys": {
+              "default": [
+                "ctrl+l"
+              ],
+              "description": "Keyboard shortcuts",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "keys",
+            "keymap_display",
+            "command_display"
+          ],
+          "type": "object"
+        },
+        "logs_key_return_key": {
+          "description": "go back",
+          "properties": {
+            "command_display": {
+              "default": "go back",
+              "description": "UI label",
+              "type": "string"
+            },
+            "keymap_display": {
+              "default": "esc/q",
+              "description": "UI label",
+              "type": "string"
+            },
+            "keys": {
+              "default": [
+                "q",
+                "backspace"
+              ],
+              "description": "Keyboard shortcuts",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "keys",
+            "keymap_display",
+            "command_display"
+          ],
+          "type": "object"
+        },
+        "models": {
+          "description": "model selection",
+          "properties": {
+            "command_display": {
+              "default": "model selection",
+              "description": "UI label",
+              "type": "string"
+            },
+            "keymap_display": {
+              "default": "ctrl+o",
+              "description": "UI label",
+              "type": "string"
+            },
+            "keys": {
+              "default": [
+                "ctrl+o"
+              ],
+              "description": "Keyboard shortcuts",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "keys",
+            "keymap_display",
+            "command_display"
+          ],
+          "type": "object"
+        },
+        "quit": {
+          "description": "quit",
+          "properties": {
+            "command_display": {
+              "default": "quit",
+              "description": "UI label",
+              "type": "string"
+            },
+            "keymap_display": {
+              "default": "ctrl+c",
+              "description": "UI label",
+              "type": "string"
+            },
+            "keys": {
+              "default": [
+                "ctrl+c"
+              ],
+              "description": "Keyboard shortcuts",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "keys",
+            "keymap_display",
+            "command_display"
+          ],
+          "type": "object"
+        },
+        "return_key": {
+          "description": "close",
+          "properties": {
+            "command_display": {
+              "default": "close",
+              "description": "UI label",
+              "type": "string"
+            },
+            "keymap_display": {
+              "default": "esc",
+              "description": "UI label",
+              "type": "string"
+            },
+            "keys": {
+              "default": [
+                "esc"
+              ],
+              "description": "Keyboard shortcuts",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "keys",
+            "keymap_display",
+            "command_display"
+          ],
+          "type": "object"
+        },
+        "switch_session": {
+          "description": "switch session",
+          "properties": {
+            "command_display": {
+              "default": "switch session",
+              "description": "UI label",
+              "type": "string"
+            },
+            "keymap_display": {
+              "default": "ctrl+a",
+              "description": "UI label",
+              "type": "string"
+            },
+            "keys": {
+              "default": [
+                "ctrl+a"
+              ],
+              "description": "Keyboard shortcuts",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "keys",
+            "keymap_display",
+            "command_display"
+          ],
+          "type": "object"
+        },
+        "switch_theme": {
+          "description": "switch theme",
+          "properties": {
+            "command_display": {
+              "default": "switch theme",
+              "description": "UI label",
+              "type": "string"
+            },
+            "keymap_display": {
+              "default": "ctrl+t",
+              "description": "UI label",
+              "type": "string"
+            },
+            "keys": {
+              "default": [
+                "ctrl+t"
+              ],
+              "description": "Keyboard shortcuts",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "keys",
+            "keymap_display",
+            "command_display"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "object"
     },
     "lsp": {
       "additionalProperties": {

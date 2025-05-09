@@ -277,6 +277,39 @@ opencode -c /path/to/project
 | ------------------ | ------------------- |
 | `Backspace` or `q` | Return to chat page |
 
+#### Configuring Keymaps
+
+You can remap keys in the `keymaps` section of the configuration file, for example:
+
+```json
+{
+  "keymaps": {
+    "logs": {
+      "keys": ["ctrl+w", "ctrl+e"],
+      "keymap_display": "ctrl+w/e",
+      "command_display": "look at my logs"
+    }
+  }
+}
+```
+
+This will change the keymap directive in the help menu to `ctrl+w/e` and the command help text in that menu to `look at my logs`.
+
+This example showcases using two keymaps for the same function, but you can use any number of keymaps.
+
+The full list of remappable commands is:
+- `logs`
+- `quit`
+- `help`
+- `switch_session`
+- `file_picker`
+- `commands`
+- `switch_theme`
+- `models`
+- `help_esc`
+- `return_key`
+- `logs_key_return_key`
+
 ## AI Assistant Tools
 
 OpenCode's AI assistant has access to various tools to help with coding tasks:
