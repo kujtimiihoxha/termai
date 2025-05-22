@@ -103,7 +103,7 @@ assistant: 4
 
 <example>
 user: is 11 a prime number?
-assistant: true
+assistant: yes
 </example>
 
 <example>
