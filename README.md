@@ -183,6 +183,20 @@ This is useful if you want to use a different shell than your default system she
 }
 ```
 
+### Context Paths
+By default, OpenCode loads a set of built-in context files (e.g. `.github/copilot-instructions.md`, `.cursor/rules/`, `OPENCODE.md`, etc.) to provide additional guidance to the AI assistant. You can extend or override these by adding a `contextPaths` array to your configuration:
+```json
+{
+  "contextPaths": [
+    "docs/context.md",
+    "./project-instructions.md",
+    "/some/absolute/global-instructions.md"
+  ]
+}
+```
+Relative paths (those not starting with `/`) are resolved against the configured working directory, while absolute paths are used as-is. Duplicate entries are automatically removed.
+
+
 ## Supported AI Models
 
 OpenCode supports a variety of AI models from different providers:

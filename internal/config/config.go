@@ -149,6 +149,9 @@ func Load(workingDir string, debug bool) (*Config, error) {
 
 	setProviderDefaults()
 
+	// Process and normalize context paths
+	processContextPaths()
+
 	// Apply configuration to the struct
 	if err := viper.Unmarshal(cfg); err != nil {
 		return cfg, fmt.Errorf("failed to unmarshal config: %w", err)
@@ -358,6 +361,40 @@ func setProviderDefaults() {
 		viper.SetDefault("agents.title.model", models.VertexAIGemini25Flash)
 		return
 	}
+}
+
+// processContextPaths merges built-in defaults and user-specified context paths,
+// normalizes both relative and absolute paths, and deduplicates the final list.
+func processContextPaths() {
+   // Combine built-in defaults with any user-specified context paths
+   userPaths := viper.GetStringSlice("contextPaths")
+   paths := append(defaultContextPaths, userPaths...)
+
+   normalized := make([]string, 0, len(paths))
+   seen := make(map[string]bool)
+
+   for _, p := range paths {
+       var absPath string
+       var err error
+
+       if filepath.IsAbs(p) {
+           absPath = p
+       } else {
+           absPath, err = filepath.Abs(filepath.Join(cfg.WorkingDir, p))
+           if err != nil {
+               logging.Warn("failed to resolve context path", "path", p, "error", err)
+               continue
+           }
+       }
+
+       if !seen[absPath] {
+           seen[absPath] = true
+           normalized = append(normalized, absPath)
+       }
+   }
+
+   // Update viper with normalized paths
+   viper.Set("contextPaths", normalized)
 }
 
 // hasAWSCredentials checks if AWS credentials are available in the environment.
@@ -824,6 +861,13 @@ func WorkingDirectory() string {
 		panic("config not loaded")
 	}
 	return cfg.WorkingDir
+}
+// ContextPaths returns the list of configured and normalized context paths.
+func ContextPaths() []string {
+   if cfg == nil {
+       panic("config not loaded")
+   }
+   return cfg.ContextPaths
 }
 
 func UpdateAgentModel(agentName AgentName, modelID models.ModelID) error {
