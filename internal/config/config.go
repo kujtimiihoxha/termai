@@ -46,7 +46,7 @@ const (
 type Agent struct {
 	Model           models.ModelID `json:"model"`
 	MaxTokens       int64          `json:"maxTokens"`
-	ReasoningEffort string         `json:"reasoningEffort"` // For openai models low,medium,heigh
+	ReasoningEffort string         `json:"reasoningEffort"` // For openai models low,medium,height
 }
 
 // Provider defines configuration for an LLM provider.

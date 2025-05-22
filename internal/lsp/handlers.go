@@ -18,7 +18,7 @@ func HandleWorkspaceConfiguration(params json.RawMessage) (any, error) {
 func HandleRegisterCapability(params json.RawMessage) (any, error) {
 	var registerParams protocol.RegistrationParams
 	if err := json.Unmarshal(params, &registerParams); err != nil {
-		logging.Error("Error unmarshaling registration params", "error", err)
+		logging.Error("Error unmarshalling registration params", "error", err)
 		return nil, err
 	}
 
@@ -34,7 +34,7 @@ func HandleRegisterCapability(params json.RawMessage) (any, error) {
 
 			var options protocol.DidChangeWatchedFilesRegistrationOptions
 			if err := json.Unmarshal(optionsJSON, &options); err != nil {
-				logging.Error("Error unmarshaling registration options", "error", err)
+				logging.Error("Error unmarshalling registration options", "error", err)
 				continue
 			}
 
@@ -97,7 +97,7 @@ func HandleServerMessage(params json.RawMessage) {
 func HandleDiagnostics(client *Client, params json.RawMessage) {
 	var diagParams protocol.PublishDiagnosticsParams
 	if err := json.Unmarshal(params, &diagParams); err != nil {
-		logging.Error("Error unmarshaling diagnostics params", "error", err)
+		logging.Error("Error unmarshalling diagnostics params", "error", err)
 		return
 	}
 

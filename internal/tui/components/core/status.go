@@ -143,12 +143,12 @@ func (m statusCmp) View() string {
 		Background(t.BackgroundDarker()).
 		Render(m.projectDiagnostics())
 
-	availableWidht := max(0, m.width-lipgloss.Width(helpWidget)-lipgloss.Width(m.model())-lipgloss.Width(diagnostics)-tokenInfoWidth)
+	availableWidth := max(0, m.width-lipgloss.Width(helpWidget)-lipgloss.Width(m.model())-lipgloss.Width(diagnostics)-tokenInfoWidth)
 
 	if m.info.Msg != "" {
 		infoStyle := styles.Padded().
 			Foreground(t.Background()).
-			Width(availableWidht)
+			Width(availableWidth)
 
 		switch m.info.Type {
 		case util.InfoTypeInfo:
@@ -159,7 +159,7 @@ func (m statusCmp) View() string {
 			infoStyle = infoStyle.Background(t.Error())
 		}
 
-		infoWidth := availableWidht - 10
+		infoWidth := availableWidth - 10
 		// Truncate message if it's longer than available width
 		msg := m.info.Msg
 		if len(msg) > infoWidth && infoWidth > 0 {
@@ -170,7 +170,7 @@ func (m statusCmp) View() string {
 		status += styles.Padded().
 			Foreground(t.Text()).
 			Background(t.BackgroundSecondary()).
-			Width(availableWidht).
+			Width(availableWidth).
 			Render("")
 	}
 

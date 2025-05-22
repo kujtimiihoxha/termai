@@ -281,7 +281,7 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case dialog.PermissionAllow:
 			a.app.Permissions.Grant(msg.Permission)
 		case dialog.PermissionAllowForSession:
-			a.app.Permissions.GrantPersistant(msg.Permission)
+			a.app.Permissions.GrantPersistent(msg.Permission)
 		case dialog.PermissionDeny:
 			a.app.Permissions.Deny(msg.Permission)
 		}

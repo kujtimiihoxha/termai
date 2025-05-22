@@ -38,7 +38,7 @@ type EditorKeyMaps struct {
 	OpenEditor key.Binding
 }
 
-type bluredEditorKeyMaps struct {
+type blurredEditorKeyMaps struct {
 	Send       key.Binding
 	Focus      key.Binding
 	OpenEditor key.Binding
@@ -71,7 +71,7 @@ var DeleteKeyMaps = DeleteAttachmentKeyMaps{
 	),
 	DeleteAllAttachments: key.NewBinding(
 		key.WithKeys("r"),
-		key.WithHelp("ctrl+r+r", "delete all attchments"),
+		key.WithHelp("ctrl+r+r", "delete all attachments"),
 	),
 }
 
@@ -198,7 +198,7 @@ func (m *editorCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.deleteMode = false
 			return m, nil
 		}
-		// Hanlde Enter key
+		// Handle Enter key
 		if m.textarea.Focused() && key.Matches(msg, editorMaps.Send) {
 			value := m.textarea.Value()
 			if len(value) > 0 && value[len(value)-1] == '\\' {

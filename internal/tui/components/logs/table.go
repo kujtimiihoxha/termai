@@ -76,12 +76,12 @@ func (i *tableCmp) GetSize() (int, int) {
 func (i *tableCmp) SetSize(width int, height int) tea.Cmd {
 	i.table.SetWidth(width)
 	i.table.SetHeight(height)
-	cloumns := i.table.Columns()
-	for i, col := range cloumns {
-		col.Width = (width / len(cloumns)) - 2
-		cloumns[i] = col
+	columns := i.table.Columns()
+	for i, col := range columns {
+		col.Width = (width / len(columns)) - 2
+		columns[i] = col
 	}
-	i.table.SetColumns(cloumns)
+	i.table.SetColumns(columns)
 	return nil
 }
 
